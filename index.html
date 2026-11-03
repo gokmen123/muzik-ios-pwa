@@ -993,7 +993,7 @@
       <div class="header-brand">
         <span class="app-name">Müzik</span>
         <div class="badge-wrap">
-          <span class="ver-badge">v0.7.4 iOS</span>
+          <span class="ver-badge">v0.7.5 iOS</span>
           <span class="device-badge">iPhone 13 Edition</span>
         </div>
       </div>
@@ -1011,7 +1011,7 @@
     <div class="tab-content active" id="tabHome">
       <div class="title-row">
         <span class="title-text">Günün Önerileri</span>
-        <span class="title-sub">0.7.4 Live</span>
+        <span class="title-sub">0.7.5 Live</span>
       </div>
       <div class="track-list" id="homeFeedList"></div>
 
@@ -1898,59 +1898,74 @@
     audio.addEventListener('pause', () => setPlaybackStatus(false));
     audio.addEventListener('ended', () => nextTrack());
 
+    // --- DÜZGÜN VE KESİNTİSİZ SARMA (SMOOTH SEEK ENGINE) ---
+    let isUserScrubbing = false;
+
+    // 1. Parmağı sürüklerken SADECE görseli ve zaman yazısını güncelle (ağ akışını bölme)
     scrubberInput.addEventListener('input', (e) => {
-      const pct = parseFloat(e.target.value) / 100;
+      isUserScrubbing = true;
+      const pct = parseFloat(e.target.value);
+      scrubberFill.style.width = pct + '%';
       if (audio.duration && isFinite(audio.duration)) {
-        const target = pct * audio.duration;
-        // Sadece küçük seek'lerde direkt set et; büyük atlayışlarda güvenli seek
-        _safSeek(target);
-      } else {
-        // Süre bilinmiyorsa: yüklendikten sonra seek yap
-        _pendingSeekPct = pct;
+        const target = (pct / 100) * audio.duration;
+        labelCurrentTime.textContent = timeFormat(target);
       }
     });
 
-    let _pendingSeekPct = null;
-    audio.addEventListener('loadedmetadata', () => {
-      if (_pendingSeekPct !== null && audio.duration && isFinite(audio.duration)) {
-        audio.currentTime = _pendingSeekPct * audio.duration;
-        _pendingSeekPct = null;
+    // 2. Parmağını bıraktığında TEK SEFERDE kesin atlama yap
+    function commitSeek() {
+      if (!isUserScrubbing) return;
+      isUserScrubbing = false;
+      const pct = parseFloat(scrubberInput.value) / 100;
+      if (audio.duration && isFinite(audio.duration)) {
+        const targetSec = pct * audio.duration;
+        _performSmoothSeek(targetSec);
       }
-    });
-
-    // Güvenli seek: hata olursa şarkıyı pozisyondan yeniden yükle
-    let _seekReloadTimer = null;
-    function _safSeek(targetSec) {
-      audio.currentTime = targetSec;
-      clearTimeout(_seekReloadTimer);
-      _seekReloadTimer = setTimeout(() => {
-        // 2 saniye sonra hâlâ duraksadıysa yeniden yükle aynı pozisyondan
-        if (audio.paused && !isTrackPlaying) return; // Kullanıcı durdurmuş, dokunma
-        if (audio.readyState < 3) {
-          const resumeAt = targetSec;
-          const track = activePlaylist[activeTrackIndex];
-          if (!track) return;
-          const seq = ++_playSeq;
-          (async () => {
-            const url = track.blob
-              ? URL.createObjectURL(track.blob)
-              : await getStreamUrl(track.id);
-            if (seq !== _playSeq) return;
-            audio.src = url;
-            audio.load();
-            const onMeta = () => {
-              audio.removeEventListener('loadedmetadata', onMeta);
-              audio.currentTime = resumeAt;
-              audio.play().catch(() => {});
-            };
-            audio.addEventListener('loadedmetadata', onMeta, { once: true });
-          })();
-        }
-      }, 2000);
     }
 
-    // seekRelative de güvenli seek kullanır
+    scrubberInput.addEventListener('change', commitSeek);
+    scrubberInput.addEventListener('touchend', commitSeek);
+    scrubberInput.addEventListener('mouseup', commitSeek);
 
+    // 3. Kesintisiz Range-Seek (2 saniyelik sıfırlama timer'ı tamamen kaldırıldı)
+    function _performSmoothSeek(targetSec) {
+      if (isNaN(targetSec) || targetSec < 0) return;
+      if (audio.duration && isFinite(audio.duration)) {
+        targetSec = Math.min(targetSec, audio.duration - 0.5);
+      }
+
+      // iOS Safari doğrudan HTTP 206 Partial Content isteğini sunucuya gönderir
+      audio.currentTime = targetSec;
+      syncPosition();
+
+      // Safari akışı alırken çalmaya devam etsin
+      if (isTrackPlaying && audio.paused) {
+        audio.play().catch(() => {});
+      }
+    }
+
+    // Geriye dönük uyumluluk
+    function _safSeek(targetSec) {
+      _performSmoothSeek(targetSec);
+    }
+
+    audio.addEventListener('seeking', () => {
+      labelCurrentTime.style.opacity = '0.5';
+    });
+
+    audio.addEventListener('seeked', () => {
+      labelCurrentTime.style.opacity = '1';
+      syncPosition();
+    });
+
+    audio.addEventListener('waiting', () => {
+      // Ağdan yeni aralık indirilirken görsel geri bildirim
+      labelCurrentTime.style.opacity = '0.5';
+    });
+
+    audio.addEventListener('canplay', () => {
+      labelCurrentTime.style.opacity = '1';
+    });
 
     // --- FULL PLAYER OPEN/CLOSE ---
     function openFullPlayer() {
