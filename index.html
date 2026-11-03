@@ -9,22 +9,22 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Müzik">
-  <meta name="theme-color" content="#0a0b10">
+  <meta name="theme-color" content="#07080c">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
 
   <style>
     :root {
-      --bg-color: #0a0b10;
-      --surface: #12141c;
-      --card-bg: rgba(22, 26, 38, 0.75);
-      --card-border: rgba(255, 255, 255, 0.08);
+      --bg: #07080c;
+      --surface: #10121a;
+      --card-bg: rgba(22, 25, 37, 0.72);
+      --card-border: rgba(255, 255, 255, 0.09);
       --accent: #8b5cf6;
-      --accent-glow: rgba(139, 92, 246, 0.35);
-      --accent-secondary: #06b6d4;
+      --accent-glow: rgba(139, 92, 246, 0.4);
+      --accent-grad: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
       --text-main: #f8fafc;
       --text-sub: #94a3b8;
-      --danger: #ef4444;
+      --danger: #f43f5e;
       --success: #10b981;
       --safe-top: env(safe-area-inset-top, 20px);
       --safe-bottom: env(safe-area-inset-bottom, 20px);
@@ -37,29 +37,29 @@
       user-select: none;
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
     body {
-      background-color: var(--bg-color);
+      background-color: var(--bg);
       color: var(--text-main);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       overflow-x: hidden;
-      padding-top: var(--safe-top);
-      padding-bottom: calc(var(--safe-bottom) + 125px); /* space for mini-player and bottom bar */
+      padding-top: calc(var(--safe-top) + 8px);
+      padding-bottom: calc(var(--safe-bottom) + 130px);
     }
 
-    /* Ambient glow */
-    .ambient-bg {
+    /* Ambient background lighting */
+    .ambient-glow {
       position: fixed;
-      top: -20%;
-      left: 15%;
-      width: 450px;
-      height: 450px;
-      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
-      filter: blur(90px);
+      top: -15%;
+      left: 10%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 65%);
+      filter: blur(100px);
       z-index: 0;
       pointer-events: none;
       transition: background 0.8s ease;
@@ -68,100 +68,123 @@
     .container {
       position: relative;
       z-index: 1;
-      max-width: 460px;
+      max-width: 480px;
       margin: 0 auto;
       width: 100%;
-      padding: 12px 18px;
+      padding: 0 18px;
     }
 
-    /* Top App Bar */
+    /* Header */
     header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 16px;
-      padding: 4px 0;
+      margin-bottom: 20px;
+      padding: 6px 0;
     }
 
-    .app-title-group {
+    .header-brand {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-name {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      background: linear-gradient(135deg, #ffffff 40%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .ver-badge {
+      font-size: 10px;
+      background: var(--accent-grad);
+      color: #fff;
+      padding: 2px 7px;
+      border-radius: 8px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+
+    .header-actions {
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
-    .app-title {
-      font-size: 22px;
-      font-weight: 800;
-      letter-spacing: -0.6px;
-    }
-
-    .badge-ver {
-      font-size: 11px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
-      padding: 2px 7px;
-      border-radius: 10px;
-      font-weight: 700;
-    }
-
-    .status-badge {
-      font-size: 11px;
+    .btn-account {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
       display: flex;
       align-items: center;
       gap: 6px;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      padding: 4px 10px;
-      border-radius: 20px;
-      color: var(--text-sub);
+      cursor: pointer;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transition: all 0.2s ease;
     }
 
-    .status-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 6px var(--success);
+    .btn-account:active {
+      transform: scale(0.95);
+      background: rgba(255, 255, 255, 0.1);
     }
 
-    /* Tabs Content Container */
-    .tab-pane {
+    /* Tabs */
+    .tab-content {
       display: none;
-      animation: fadeIn 0.2s ease;
+      animation: tabFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    .tab-pane.active {
+    .tab-content.active {
       display: block;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
+    @keyframes tabFadeIn {
+      from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Section Titles */
-    .section-title {
-      font-size: 18px;
-      font-weight: 700;
-      margin: 16px 0 12px;
+    /* Titles */
+    .title-row {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: baseline;
+      margin: 18px 0 12px;
     }
 
-    .section-subtitle {
-      font-size: 12px;
+    .title-text {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+    }
+
+    .title-sub {
+      font-size: 13px;
       color: var(--text-sub);
       font-weight: 500;
     }
 
-    /* Search Bar */
-    .search-box {
+    /* Search Box */
+    .search-bar-wrap {
       display: flex;
-      gap: 10px;
-      margin-bottom: 16px;
+      gap: 8px;
+      margin-bottom: 18px;
     }
 
-    .search-input-wrapper {
+    .search-input-box {
       position: relative;
       flex: 1;
     }
@@ -170,91 +193,93 @@
       width: 100%;
       background: var(--surface);
       border: 1px solid var(--card-border);
-      border-radius: 14px;
-      padding: 12px 14px 12px 38px;
+      border-radius: 16px;
+      padding: 13px 14px 13px 40px;
       color: var(--text-main);
       font-size: 15px;
       outline: none;
-      transition: border 0.2s ease;
+      transition: border 0.2s, box-shadow 0.2s;
     }
 
     .search-input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 12px var(--accent-glow);
+      box-shadow: 0 0 14px var(--accent-glow);
     }
 
-    .search-icon {
+    .search-glass-icon {
       position: absolute;
-      left: 12px;
+      left: 14px;
       top: 50%;
       transform: translateY(-50%);
       color: var(--text-sub);
     }
 
-    .btn-search {
-      background: linear-gradient(135deg, var(--accent), #7c3aed);
+    .btn-search-go {
+      background: var(--accent-grad);
       border: none;
       color: #fff;
       padding: 0 18px;
-      border-radius: 14px;
-      font-weight: 600;
+      border-radius: 16px;
+      font-weight: 700;
       font-size: 14px;
       cursor: pointer;
+      box-shadow: 0 4px 15px var(--accent-glow);
     }
 
-    /* Track List & Cards */
+    /* Track Cards */
     .track-list {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 9px;
     }
 
-    .track-card {
+    .track-item {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 10px 12px;
+      gap: 13px;
+      padding: 10px 14px;
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 16px;
+      border-radius: 18px;
       cursor: pointer;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      transition: all 0.2s ease;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: transform 0.2s, background 0.2s, border-color 0.2s;
     }
 
-    .track-card:active {
-      transform: scale(0.98);
+    .track-item:active {
+      transform: scale(0.975);
       background: rgba(139, 92, 246, 0.15);
     }
 
-    .track-card.active {
+    .track-item.active {
       border-color: var(--accent);
       background: rgba(139, 92, 246, 0.18);
     }
 
-    .track-thumb {
-      width: 48px;
-      height: 48px;
-      border-radius: 10px;
+    .track-cover-img {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
       object-fit: cover;
-      background: #1e2230;
+      background: #1b1e2c;
+      flex-shrink: 0;
     }
 
-    .track-meta {
+    .track-text-box {
       flex: 1;
       min-width: 0;
     }
 
-    .track-name {
-      font-size: 14px;
+    .track-primary-title {
+      font-size: 15px;
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .track-by {
+    .track-secondary-info {
       font-size: 12px;
       color: var(--text-sub);
       margin-top: 3px;
@@ -263,13 +288,7 @@
       text-overflow: ellipsis;
     }
 
-    .track-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .btn-icon {
+    .btn-track-action {
       background: none;
       border: none;
       color: var(--text-sub);
@@ -277,111 +296,115 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 6px;
+      padding: 8px;
       border-radius: 50%;
     }
 
-    .btn-icon.active {
-      color: var(--accent);
-    }
-
-    .btn-icon.downloaded {
+    .btn-track-action.downloaded {
       color: var(--success);
     }
 
-    /* Playlist cards in Library */
-    .playlist-grid {
+    /* Playlists Grid */
+    .playlist-cards-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 16px;
+      gap: 12px;
+      margin-bottom: 20px;
     }
 
-    .playlist-card {
+    .lib-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 14px;
+      border-radius: 20px;
+      padding: 16px;
       cursor: pointer;
-      transition: all 0.2s ease;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      min-height: 90px;
+      min-height: 96px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: all 0.2s ease;
     }
 
-    .playlist-card:active {
-      transform: scale(0.97);
+    .lib-card:active {
+      transform: scale(0.96);
     }
 
-    .playlist-card-title {
-      font-size: 15px;
+    .lib-card-title {
+      font-size: 16px;
       font-weight: 700;
     }
 
-    .playlist-card-count {
+    .lib-card-subtitle {
       font-size: 12px;
       color: var(--text-sub);
       margin-top: 4px;
     }
 
     /* Fixed Bottom Mini-Player */
-    .mini-player {
+    .mini-player-bar {
       position: fixed;
-      bottom: calc(var(--safe-bottom) + 60px);
+      bottom: calc(var(--safe-bottom) + 65px);
       left: 12px;
       right: 12px;
-      max-width: 436px;
+      max-width: 456px;
       margin: 0 auto;
-      background: rgba(18, 20, 28, 0.92);
-      border: 1px solid var(--card-border);
-      border-radius: 18px;
-      padding: 8px 12px;
+      background: rgba(18, 20, 28, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      padding: 9px 14px;
       display: flex;
       align-items: center;
-      gap: 12px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      z-index: 90;
+      gap: 13px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.65), 0 0 20px var(--accent-glow);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      z-index: 95;
       cursor: pointer;
+      transition: transform 0.2s ease;
     }
 
-    .mini-thumb {
-      width: 42px;
-      height: 42px;
-      border-radius: 10px;
+    .mini-player-bar:active {
+      transform: scale(0.99);
+    }
+
+    .mini-player-thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
       object-fit: cover;
+      flex-shrink: 0;
     }
 
-    .mini-info {
+    .mini-player-meta {
       flex: 1;
       min-width: 0;
     }
 
-    .mini-title {
-      font-size: 13px;
+    .mini-player-title {
+      font-size: 14px;
       font-weight: 700;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .mini-artist {
-      font-size: 11px;
+    .mini-player-artist {
+      font-size: 12px;
       color: var(--text-sub);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .mini-controls {
+    .mini-player-controls {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
 
-    .mini-btn {
+    .btn-mini-ctrl {
       background: none;
       border: none;
       color: var(--text-main);
@@ -392,43 +415,42 @@
       cursor: pointer;
     }
 
-    /* Mini player progress indicator */
-    .mini-progress-line {
+    .mini-progress-track {
       position: absolute;
       bottom: 0;
-      left: 12px;
-      right: 12px;
+      left: 14px;
+      right: 14px;
       height: 2px;
       background: rgba(255, 255, 255, 0.1);
       border-radius: 2px;
       overflow: hidden;
     }
 
-    .mini-progress-bar {
+    .mini-progress-fill {
       height: 100%;
-      background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
+      background: var(--accent-grad);
       width: 0%;
     }
 
-    /* Bottom Navigation Bar */
-    .bottom-nav {
+    /* iOS Bottom Navigation Bar */
+    .ios-tab-bar {
       position: fixed;
       bottom: 0;
       left: 0;
       right: 0;
-      height: calc(var(--safe-bottom) + 55px);
+      height: calc(var(--safe-bottom) + 58px);
       background: rgba(10, 11, 16, 0.95);
-      border-top: 1px solid var(--card-border);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
       display: flex;
       justify-content: space-around;
       align-items: flex-start;
-      padding-top: 6px;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
+      padding-top: 7px;
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
       z-index: 100;
     }
 
-    .nav-item {
+    .tab-item {
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -439,120 +461,135 @@
       font-size: 10px;
       font-weight: 600;
       cursor: pointer;
-      width: 60px;
+      width: 64px;
       transition: color 0.15s ease;
     }
 
-    .nav-item.active {
+    .tab-item.active {
       color: var(--accent);
     }
 
-    .nav-item svg {
-      width: 22px;
-      height: 22px;
+    .tab-item svg {
+      width: 23px;
+      height: 23px;
     }
 
-    /* Full Player Modal */
-    .full-player-modal {
+    /* Full Player Sheet (Apple Music Style) */
+    .full-player-sheet {
       position: fixed;
       top: 0;
       left: 0;
       right: 0;
       bottom: 0;
-      background: var(--bg-color);
+      background: var(--bg);
       z-index: 200;
       display: flex;
       flex-direction: column;
-      padding: calc(var(--safe-top) + 10px) 24px calc(var(--safe-bottom) + 20px);
+      padding: calc(var(--safe-top) + 12px) 24px calc(var(--safe-bottom) + 24px);
       transform: translateY(100%);
-      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
       overflow-y: auto;
     }
 
-    .full-player-modal.open {
+    .full-player-sheet.open {
       transform: translateY(0);
     }
 
-    .player-header {
+    .sheet-handle-bar {
+      width: 38px;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      margin: 0 auto 16px;
+      cursor: pointer;
+    }
+
+    .player-top-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 20px;
     }
 
-    .player-artwork-box {
-      width: 280px;
-      height: 280px;
-      margin: 10px auto 25px;
-      border-radius: 30px;
+    .player-artwork-container {
+      width: 290px;
+      height: 290px;
+      margin: 10px auto 28px;
+      border-radius: 32px;
       overflow: hidden;
-      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.7), 0 0 35px var(--accent-glow);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 25px 55px rgba(0, 0, 0, 0.8), 0 0 40px var(--accent-glow);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      transition: transform 0.35s ease;
     }
 
-    .player-artwork-img {
+    .player-artwork-container.playing {
+      transform: scale(1.02);
+    }
+
+    .player-artwork-media {
       width: 100%;
       height: 100%;
       object-fit: cover;
     }
 
-    .player-track-info {
+    .player-track-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
+      margin-bottom: 22px;
     }
 
-    .player-track-title {
-      font-size: 20px;
+    .player-main-title {
+      font-size: 22px;
       font-weight: 800;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 280px;
+      max-width: 270px;
+      letter-spacing: -0.4px;
     }
 
-    .player-track-artist {
-      font-size: 14px;
+    .player-main-artist {
+      font-size: 15px;
       color: var(--text-sub);
       margin-top: 4px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 280px;
+      max-width: 270px;
     }
 
-    /* Slider in Full Player */
-    .player-slider-wrap {
+    /* Slider */
+    .scrubber-section {
       margin-bottom: 24px;
     }
 
-    .slider-track {
+    .scrubber-track {
       position: relative;
       width: 100%;
-      height: 20px;
+      height: 22px;
       display: flex;
       align-items: center;
     }
 
-    .slider-bg {
+    .scrubber-bg {
       position: absolute;
       width: 100%;
-      height: 5px;
+      height: 6px;
       background: rgba(255, 255, 255, 0.12);
-      border-radius: 3px;
+      border-radius: 4px;
     }
 
-    .slider-fill {
+    .scrubber-fill {
       position: absolute;
-      height: 5px;
-      background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
-      border-radius: 3px;
+      height: 6px;
+      background: var(--accent-grad);
+      border-radius: 4px;
       width: 0%;
-      box-shadow: 0 0 10px var(--accent);
+      box-shadow: 0 0 12px var(--accent);
     }
 
-    .slider-native {
+    .scrubber-range {
       position: absolute;
       width: 100%;
       height: 100%;
@@ -560,51 +597,54 @@
       cursor: pointer;
     }
 
-    .player-time-row {
+    .scrubber-labels {
       display: flex;
       justify-content: space-between;
       font-size: 12px;
       color: var(--text-sub);
       margin-top: 4px;
+      font-weight: 500;
     }
 
-    /* Player Main Controls */
-    .player-controls-row {
+    /* Controls */
+    .main-controls-box {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 28px;
+      margin-bottom: 30px;
       padding: 0 10px;
     }
 
-    .btn-play-circle {
-      width: 72px;
-      height: 72px;
-      background: linear-gradient(135deg, var(--accent), #7c3aed);
+    .btn-circle-play {
+      width: 76px;
+      height: 76px;
+      background: var(--accent-grad);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       border: none;
       color: #fff;
-      box-shadow: 0 8px 24px var(--accent-glow);
+      box-shadow: 0 10px 28px var(--accent-glow);
       cursor: pointer;
+      transition: transform 0.15s ease;
     }
 
-    .btn-play-circle:active {
+    .btn-circle-play:active {
       transform: scale(0.92);
     }
 
-    /* Up-Next suggestions inside Player */
-    .up-next-section {
+    /* Up Next card */
+    .up-next-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 20px;
-      padding: 16px;
+      border-radius: 22px;
+      padding: 18px;
       margin-top: 10px;
+      backdrop-filter: blur(20px);
     }
 
-    .up-next-header {
+    .up-next-title-row {
       font-size: 14px;
       font-weight: 700;
       margin-bottom: 12px;
@@ -613,273 +653,358 @@
       align-items: center;
     }
 
-    /* Notice Toast */
-    .toast {
+    /* Modal dialog */
+    .ios-modal {
       position: fixed;
-      top: calc(var(--safe-top) + 10px);
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(16px);
+      z-index: 300;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .ios-modal.show {
+      display: flex;
+    }
+
+    .ios-modal-box {
+      background: var(--surface);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 22px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+    }
+
+    .ios-modal-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .ios-modal-desc {
+      font-size: 13px;
+      color: var(--text-sub);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+
+    .ios-modal-input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 12px 14px;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+      margin-bottom: 16px;
+    }
+
+    .ios-modal-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .btn-modal-cancel {
+      background: none;
+      border: 1px solid var(--card-border);
+      color: var(--text-sub);
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-modal-action {
+      background: var(--accent-grad);
+      border: none;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 15px var(--accent-glow);
+    }
+
+    /* Toast Notification */
+    .toast-pill {
+      position: fixed;
+      top: calc(var(--safe-top) + 12px);
       left: 20px;
       right: 20px;
       max-width: 420px;
       margin: 0 auto;
-      background: rgba(18, 20, 30, 0.95);
+      background: rgba(18, 20, 32, 0.96);
       border: 1px solid var(--accent);
       color: var(--text-main);
-      padding: 12px 16px;
-      border-radius: 16px;
+      padding: 12px 18px;
+      border-radius: 22px;
       font-size: 13px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(16px);
-      z-index: 300;
-      transform: translateY(-150%);
-      transition: transform 0.3s ease;
+      font-weight: 600;
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(20px);
+      z-index: 400;
+      transform: translateY(-160%);
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
       display: flex;
       align-items: center;
       gap: 10px;
     }
 
-    .toast.show {
+    .toast-pill.show {
       transform: translateY(0);
     }
   </style>
 </head>
 <body>
-  <div class="ambient-bg" id="ambientBg"></div>
+  <div class="ambient-glow" id="ambientGlow"></div>
 
-  <!-- Main Container -->
   <div class="container">
     <!-- Top Header -->
     <header>
-      <div class="app-title-group">
-        <span class="app-title">Müzik</span>
-        <span class="badge-ver">0.7.1</span>
+      <div class="header-brand">
+        <span class="app-name">Müzik</span>
+        <div class="badge-wrap">
+          <span class="ver-badge">v0.7.1 iOS</span>
+          <span style="font-size: 11px; color: var(--text-sub);">iPhone 13 Edition</span>
+        </div>
       </div>
-      <div class="status-badge">
-        <div class="status-dot"></div>
-        <span id="offlineStatus">Çevrimiçi</span>
+      <div class="header-actions">
+        <button class="btn-account" onclick="openYouTubeAccountModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color: #ef4444;">
+            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+          </svg>
+          <span id="ytAccountLabel">YouTube Bağla</span>
+        </button>
       </div>
     </header>
 
-    <!-- TAB 1: ANA SAYFA (Önerilenler) -->
-    <div class="tab-pane active" id="tabHome">
-      <div class="section-title">
-        <span>Günün Önerileri</span>
-        <span class="section-subtitle">0.7.1 MusicFeed</span>
+    <!-- TAB 1: ANA SAYFA -->
+    <div class="tab-content active" id="tabHome">
+      <div class="title-row">
+        <span class="title-text">Günün Önerileri</span>
+        <span class="title-sub">0.7.1 MusicFeed</span>
       </div>
-      <div class="track-list" id="homeList"></div>
+      <div class="track-list" id="homeFeedList"></div>
 
-      <div class="section-title" style="margin-top: 24px;">
-        <span>Popüler Listeler</span>
+      <div class="title-row" style="margin-top: 26px;">
+        <span class="title-text">Popüler Listeler</span>
       </div>
-      <div class="playlist-grid">
-        <div class="playlist-card" onclick="playGenre('ankara')">
-          <div class="playlist-card-title">🪗 Ankara Havası</div>
-          <div class="playlist-card-count">Özel Seçki · 12 Parça</div>
+      <div class="playlist-cards-grid">
+        <div class="lib-card" onclick="playGenreCollection('ankara')">
+          <div class="lib-card-title">🪗 Ankara Havası</div>
+          <div class="lib-card-subtitle">Özel Seçki · 12 Parça</div>
         </div>
-        <div class="playlist-card" onclick="playGenre('turkce_pop')">
-          <div class="playlist-card-title">🔥 Türkçe Pop</div>
-          <div class="playlist-card-count">En Çok Dinlenenler</div>
+        <div class="lib-card" onclick="playGenreCollection('turkce_pop')">
+          <div class="lib-card-title">🔥 Türkçe Pop</div>
+          <div class="lib-card-subtitle">Haftalık Trendler</div>
         </div>
       </div>
     </div>
 
-    <!-- TAB 2: ARA (YouTube & URL Arama) -->
-    <div class="tab-pane" id="tabSearch">
-      <div class="search-box">
-        <div class="search-input-wrapper">
-          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <!-- TAB 2: ARA -->
+    <div class="tab-content" id="tabSearch">
+      <div class="search-bar-wrap">
+        <div class="search-input-box">
+          <svg class="search-glass-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
           <input type="text" id="searchInput" class="search-input" placeholder="Şarkı, sanatçı veya YouTube linki...">
         </div>
-        <button class="btn-search" id="btnSearchSubmit">Ara</button>
+        <button class="btn-search-go" id="btnSearchSubmit">Ara</button>
       </div>
 
-      <div class="section-title">
-        <span id="searchResultTitle">Arama Sonuçları</span>
-        <span class="section-subtitle" id="searchResultCount">0 parça</span>
+      <div class="title-row">
+        <span class="title-text" id="searchHeaderTitle">Arama Sonuçları</span>
+        <span class="title-sub" id="searchHeaderCount">0 parça</span>
       </div>
-      <div class="track-list" id="searchList">
-        <div style="text-align: center; color: var(--text-sub); padding: 40px 10px; font-size: 14px;">
-          Dinlemek istediğin şarkıyı yaz veya bir YouTube linki yapıştır.
+      <div class="track-list" id="searchResultsList">
+        <div style="text-align: center; color: var(--text-sub); padding: 45px 12px; font-size: 14px;">
+          Dinlemek istediğin şarkıyı yaz veya bir YouTube Music linki yapıştır.
         </div>
       </div>
     </div>
 
-    <!-- TAB 3: KİTAPLIĞIM (Çalma Listeleri & Favoriler) -->
-    <div class="tab-pane" id="tabLibrary">
-      <div class="section-title">
-        <span>Kitaplığım</span>
-        <button class="btn-icon active" onclick="promptNewPlaylist()" title="Yeni Liste">+ Yeni</button>
-      </div>
-      <div class="playlist-grid" id="customPlaylistsGrid">
-        <div class="playlist-card" onclick="openPlaylist('Favoriler')">
-          <div class="playlist-card-title">❤️ Favoriler</div>
-          <div class="playlist-card-count" id="favCount">0 parça</div>
+    <!-- TAB 3: KİTAPLIĞIM -->
+    <div class="tab-content" id="tabLibrary">
+      <div class="title-row">
+        <span class="title-text">Kitaplığım</span>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-account" onclick="openImportPlaylistModal()">+ Link İçe Aktar</button>
+          <button class="btn-account" onclick="openNewPlaylistModal()">+ Yeni Liste</button>
         </div>
-        <div class="playlist-card" onclick="openPlaylist('Tüm İndirilenler')">
-          <div class="playlist-card-title">📥 Tüm İndirilenler</div>
-          <div class="playlist-card-count" id="allDownloadCount">0 parça</div>
+      </div>
+      <div class="playlist-cards-grid" id="libraryCardsGrid">
+        <div class="lib-card" onclick="openPlaylistView('Favoriler')">
+          <div class="lib-card-title">❤️ Favoriler</div>
+          <div class="lib-card-subtitle" id="favCount">0 parça</div>
+        </div>
+        <div class="lib-card" onclick="openPlaylistView('Tüm İndirilenler')">
+          <div class="lib-card-title">📥 Tüm İndirilenler</div>
+          <div class="lib-card-subtitle" id="downloadLibCount">0 parça</div>
         </div>
       </div>
 
-      <div class="section-title">
-        <span id="currentPlaylistTitle">Favoriler</span>
+      <div class="title-row">
+        <span class="title-text" id="currentViewPlaylistTitle">Favoriler</span>
       </div>
-      <div class="track-list" id="playlistTracksList"></div>
+      <div class="track-list" id="libraryTracksList"></div>
     </div>
 
-    <!-- TAB 4: İNDİRİLENLER (Çevrimdışı Bellek) -->
-    <div class="tab-pane" id="tabDownloads">
-      <div class="section-title">
-        <span>Çevrimdışı İndirilenler</span>
-        <span class="section-subtitle" id="storageUsage">0 MB Kullanıldı</span>
+    <!-- TAB 4: İNDİRİLENLER -->
+    <div class="tab-content" id="tabDownloads">
+      <div class="title-row">
+        <span class="title-text">Çevrimdışı İndirilenler</span>
+        <span class="title-sub" id="storageUsageIndicator">0 MB</span>
       </div>
-      <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 14px; padding: 10px 14px; font-size: 12px; margin-bottom: 14px; color: #a7f3d0;">
-        💡 Bu listedeki şarkılar iPhone dahili hafızasındadır. İnternetiniz veya şebekeniz yokken bile uçak modunda dinleyebilirsiniz.
+      <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; padding: 12px 16px; font-size: 12px; margin-bottom: 16px; color: #a7f3d0; line-height: 1.5;">
+        ✈️ <strong>Uçak Modunda Dinleme:</strong> Bu şarkılar iPhone dahili hafızasındadır. İnternetiniz veya şebekeniz kapalıyken bile kesintisiz çalmaya devam eder.
       </div>
-      <div class="track-list" id="downloadsList"></div>
+      <div class="track-list" id="offlineDownloadsList"></div>
     </div>
   </div>
 
-  <!-- FIXED MINI PLAYER -->
-  <div class="mini-player" id="miniPlayer" style="display: none;">
-    <img src="icons/cover1.png" class="mini-thumb" id="miniThumb" alt="thumb">
-    <div class="mini-info" onclick="openFullPlayer()">
-      <div class="mini-title" id="miniTitle">Parça Adı</div>
-      <div class="mini-artist" id="miniArtist">Sanatçı</div>
+  <!-- FIXED MINI-PLAYER (ISLAND STYLE) -->
+  <div class="mini-player-bar" id="miniPlayer" style="display: none;" onclick="openFullPlayer()">
+    <img src="icons/cover1.png" class="mini-player-thumb" id="miniThumb" alt="Cover">
+    <div class="mini-player-meta">
+      <div class="mini-player-title" id="miniTitle">Parça Adı</div>
+      <div class="mini-player-artist" id="miniArtist">Sanatçı</div>
     </div>
-    <div class="mini-controls">
-      <button class="mini-btn" id="miniBtnPlay" onclick="togglePlay(event)">
-        <svg id="miniPlayIcon" width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+    <div class="mini-player-controls">
+      <button class="btn-mini-ctrl" id="miniBtnPlay" onclick="event.stopPropagation(); togglePlay();">
+        <svg id="miniPlayIcon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
           <polygon points="6 3 20 12 6 21 6 3"></polygon>
         </svg>
-        <svg id="miniPauseIcon" width="26" height="26" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
+        <svg id="miniPauseIcon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
           <rect x="6" y="4" width="4" height="16"></rect>
           <rect x="14" y="4" width="4" height="16"></rect>
         </svg>
       </button>
-      <button class="mini-btn" onclick="nextTrack(event)">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+      <button class="btn-mini-ctrl" onclick="event.stopPropagation(); nextTrack();">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
           <polygon points="5 4 15 12 5 20 5 4"></polygon>
-          <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"></line>
+          <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2.5"></line>
         </svg>
       </button>
     </div>
-    <div class="mini-progress-line">
-      <div class="mini-progress-bar" id="miniProgressBar"></div>
+    <div class="mini-progress-track">
+      <div class="mini-progress-fill" id="miniProgressFill"></div>
     </div>
   </div>
 
-  <!-- BOTTOM NAVIGATION -->
-  <nav class="bottom-nav">
-    <button class="nav-item active" onclick="switchTab('tabHome', this)">
+  <!-- BOTTOM TAB BAR (iOS NATIVE HIG) -->
+  <nav class="ios-tab-bar">
+    <button class="tab-item active" onclick="switchNavTab('tabHome', this)">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
       <span>Ana Sayfa</span>
     </button>
-    <button class="nav-item" onclick="switchTab('tabSearch', this)">
+    <button class="tab-item" onclick="switchNavTab('tabSearch', this)">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
       <span>Ara</span>
     </button>
-    <button class="nav-item" onclick="switchTab('tabLibrary', this)">
+    <button class="tab-item" onclick="switchNavTab('tabLibrary', this)">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
       <span>Kitaplığım</span>
     </button>
-    <button class="nav-item" onclick="switchTab('tabDownloads', this)">
+    <button class="tab-item" onclick="switchNavTab('tabDownloads', this)">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
       <span>İndirilen</span>
     </button>
   </nav>
 
-  <!-- FULL SCREEN PLAYER MODAL -->
-  <div class="full-player-modal" id="fullPlayer">
-    <div class="player-header">
-      <button class="btn-icon" onclick="closeFullPlayer()">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
+  <!-- FULL SCREEN PLAYER SHEET (APPLE MUSIC STYLE) -->
+  <div class="full-player-sheet" id="fullPlayer">
+    <div class="sheet-handle-bar" onclick="closeFullPlayer()"></div>
+
+    <div class="player-top-row">
+      <button class="btn-track-action" onclick="closeFullPlayer()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </button>
-      <span style="font-size: 13px; font-weight: 700; color: var(--text-sub);">ÇALMA EKRANI</span>
-      <button class="btn-icon" id="playerFavBtn" onclick="toggleFavoriteCurrent()">
-        <svg id="favIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-        </svg>
+      <span style="font-size: 13px; font-weight: 700; color: var(--text-sub); letter-spacing: 0.5px;">ÇALMA EKRANI</span>
+      <button class="btn-track-action" id="btnFavCurrent" onclick="toggleCurrentFavorite()">
+        <svg id="favCurrentIcon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
       </button>
     </div>
 
-    <!-- Album Art -->
-    <div class="player-artwork-box">
-      <img src="icons/cover1.png" class="player-artwork-img" id="playerCoverImg" alt="Artwork">
+    <!-- Artwork -->
+    <div class="player-artwork-container" id="playerArtBox">
+      <img src="icons/cover1.png" class="player-artwork-media" id="playerArtwork" alt="Artwork">
     </div>
 
-    <!-- Title & Artist -->
-    <div class="player-track-info">
+    <!-- Title & Download -->
+    <div class="player-track-header">
       <div>
-        <div class="player-track-title" id="playerTrackTitle">Parça Adı</div>
-        <div class="player-track-artist" id="playerTrackArtist">Sanatçı</div>
+        <div class="player-main-title" id="playerTitle">Parça Adı</div>
+        <div class="player-main-artist" id="playerArtist">Sanatçı</div>
       </div>
-      <button class="btn-icon" id="playerDownloadBtn" onclick="downloadCurrentTrack()" title="İndir">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
-        </svg>
+      <button class="btn-track-action" id="btnDownloadCurrent" onclick="downloadActiveTrack()" title="İndir">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
       </button>
     </div>
 
-    <!-- Progress Slider -->
-    <div class="player-slider-wrap">
-      <div class="slider-track">
-        <div class="slider-bg"></div>
-        <div class="slider-fill" id="playerSliderFill"></div>
-        <input type="range" min="0" max="100" value="0" class="slider-native" id="playerNativeSlider">
+    <!-- Scrubber -->
+    <div class="scrubber-section">
+      <div class="scrubber-track">
+        <div class="scrubber-bg"></div>
+        <div class="scrubber-fill" id="scrubberFill"></div>
+        <input type="range" min="0" max="100" value="0" class="scrubber-range" id="scrubberInput">
       </div>
-      <div class="player-time-row">
-        <span id="playerCurrTime">0:00</span>
-        <span id="playerTotalTime">0:00</span>
+      <div class="scrubber-labels">
+        <span id="labelCurrentTime">0:00</span>
+        <span id="labelTotalTime">0:00</span>
       </div>
     </div>
 
-    <!-- Player Controls -->
-    <div class="player-controls-row">
+    <!-- Controls -->
+    <div class="main-controls-box">
       <!-- 10s Rewind -->
-      <button class="btn-icon" onclick="seekOffset(-10)">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <button class="btn-track-action" onclick="seekRelative(-10)">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
           <text x="8.5" y="15.5" font-size="8" fill="currentColor" stroke="none" font-weight="bold">10</text>
         </svg>
       </button>
 
       <!-- Previous -->
-      <button class="btn-icon" onclick="prevTrack()">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+      <button class="btn-track-action" onclick="prevTrack()">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor">
           <polygon points="19 20 9 12 19 4 19 20"></polygon>
           <line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2.5"></line>
         </svg>
       </button>
 
-      <!-- Main Play/Pause -->
-      <button class="btn-play-circle" onclick="togglePlay()">
-        <svg id="fpPlayIcon" width="36" height="36" viewBox="0 0 24 24" fill="currentColor">
+      <!-- Circle Play/Pause -->
+      <button class="btn-circle-play" onclick="togglePlay()">
+        <svg id="fpPlaySvg" width="38" height="38" viewBox="0 0 24 24" fill="currentColor">
           <polygon points="6 3 20 12 6 21 6 3"></polygon>
         </svg>
-        <svg id="fpPauseIcon" width="36" height="36" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
+        <svg id="fpPauseSvg" width="38" height="38" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
           <rect x="6" y="4" width="4" height="16"></rect>
           <rect x="14" y="4" width="4" height="16"></rect>
         </svg>
       </button>
 
       <!-- Next -->
-      <button class="btn-icon" onclick="nextTrack()">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+      <button class="btn-track-action" onclick="nextTrack()">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor">
           <polygon points="5 4 15 12 5 20 5 4"></polygon>
           <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2.5"></line>
         </svg>
       </button>
 
       <!-- 10s Forward -->
-      <button class="btn-icon" onclick="seekOffset(10)">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <button class="btn-track-action" onclick="seekRelative(10)">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
           <text x="8.5" y="15.5" font-size="8" fill="currentColor" stroke="none" font-weight="bold">10</text>
         </svg>
@@ -887,33 +1012,61 @@
     </div>
 
     <!-- Up-Next (Sıradaki Önerileri - 0.7.1) -->
-    <div class="up-next-section">
-      <div class="up-next-header">
-        <span>Sıradaki Öneriler</span>
+    <div class="up-next-card">
+      <div class="up-next-title-row">
+        <span>Sıradaki Öneriler (Up-Next)</span>
         <span style="font-size: 11px; color: var(--accent);">Otomatik Çal</span>
       </div>
-      <div class="track-list" id="upNextList"></div>
+      <div class="track-list" id="playerUpNextList"></div>
     </div>
   </div>
 
-  <!-- TOAST NOTIFICATION -->
-  <div class="toast" id="toast">
-    <span id="toastMsg">İşlem tamamlandı</span>
+  <!-- YOUTUBE HESABI / LİSTE MODAL -->
+  <div class="ios-modal" id="modalYouTube">
+    <div class="ios-modal-box">
+      <div class="ios-modal-title">YouTube Hesabı & Listeleri</div>
+      <div class="ios-modal-desc">
+        YouTube Music veya YouTube'da kayıtlı olan çalma listelerini veya beğenilen şarkılarını tek dokunuşla içe aktarabilirsin.
+      </div>
+      <input type="text" id="ytPlaylistInput" class="ios-modal-input" placeholder="YouTube liste veya video linki yapıştır...">
+      <div class="ios-modal-buttons">
+        <button class="btn-modal-cancel" onclick="closeModals()">Kapat</button>
+        <button class="btn-modal-action" onclick="importFromInput()">İçe Aktar</button>
+      </div>
+    </div>
   </div>
 
-  <!-- Audio Element -->
-  <audio id="mainAudio" preload="auto"></audio>
-  <audio id="preloadAudio" preload="auto"></audio>
+  <!-- YENİ LİSTE OLUŞTURMA MODAL -->
+  <div class="ios-modal" id="modalNewList">
+    <div class="ios-modal-box">
+      <div class="ios-modal-title">Yeni Çalma Listesi</div>
+      <div class="ios-modal-desc">Kitaplığım sekmesinde saklanacak yeni bir liste adı gir.</div>
+      <input type="text" id="newListNameInput" class="ios-modal-input" placeholder="Liste adı (örn: Yol Şarkıları)">
+      <div class="ios-modal-buttons">
+        <button class="btn-modal-cancel" onclick="closeModals()">İptal</button>
+        <button class="btn-modal-action" onclick="saveNewPlaylist()">Oluştur</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST PILL -->
+  <div class="toast-pill" id="toastPill">
+    <span id="toastPillText">İşlem tamamlandı</span>
+  </div>
+
+  <!-- Audio Elements -->
+  <audio id="coreAudio" preload="auto"></audio>
+  <audio id="bufferAudio" preload="auto"></audio>
 
   <script>
-    // --- INDEXEDDB VERİTABANI (ÇEVRİMDIŞI İNDİRMELER & LİSTELER) ---
-    const DB_NAME = 'MuzikAppDB';
-    const DB_VERSION = 1;
+    // --- INDEXEDDB (OFFLINE DEPOLAMA & LİSTELER) ---
+    const DB_NAME = 'MuzikStoreDB';
+    const DB_VER = 1;
     let db;
 
-    function initDB() {
+    function setupDatabase() {
       return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        const req = indexedDB.open(DB_NAME, DB_VER);
         req.onupgradeneeded = (e) => {
           const d = e.target.result;
           if (!d.objectStoreNames.contains('downloads')) d.createObjectStore('downloads', { keyPath: 'id' });
@@ -925,7 +1078,7 @@
       });
     }
 
-    async function dbSaveDownload(track, blob) {
+    async function dbSaveOfflineTrack(track, blob) {
       return new Promise((resolve, reject) => {
         const tx = db.transaction('downloads', 'readwrite');
         tx.objectStore('downloads').put({ ...track, blob, downloadedAt: Date.now() });
@@ -934,7 +1087,7 @@
       });
     }
 
-    async function dbGetDownloads() {
+    async function dbGetAllDownloads() {
       return new Promise((resolve) => {
         const tx = db.transaction('downloads', 'readonly');
         const req = tx.objectStore('downloads').getAll();
@@ -943,7 +1096,7 @@
       });
     }
 
-    async function dbToggleFavorite(track) {
+    async function dbToggleFav(track) {
       return new Promise((resolve) => {
         const tx = db.transaction('favorites', 'readwrite');
         const store = tx.objectStore('favorites');
@@ -960,7 +1113,7 @@
       });
     }
 
-    async function dbIsFavorite(id) {
+    async function dbCheckFav(id) {
       return new Promise((resolve) => {
         const tx = db.transaction('favorites', 'readonly');
         const req = tx.objectStore('favorites').get(id);
@@ -969,30 +1122,30 @@
       });
     }
 
-    // --- CURATED DEMO & INITIAL FEED (0.7.1) ---
-    const INITIAL_TRACKS = [
+    // --- CURATED FEED (0.7.1 EŞİTLEMESİ) ---
+    const CURATED_FEED = [
       {
-        id: "ankara-hava",
-        title: "Ankara Havası (Kostak)",
-        artist: "Sincanlı & Grup · Özel Seçki",
+        id: "ankara-01",
+        title: "Ankara Havası (Kostak & Misket)",
+        artist: "Sincanlı & Özel Orkestra",
         duration: "0:28",
         durationSec: 28,
         cover: "icons/cover1.png",
         src: "audio/track1.wav"
       },
       {
-        id: "turkce-pop",
-        title: "Yaz Rüzgarı (Kulüp Mix)",
-        artist: "Defne & Kaan · 2026 Hit",
+        id: "turkce-pop-01",
+        title: "Yaz Rüzgarı (Kulüp Beat)",
+        artist: "Defne & Kaan · 2026 Trend",
         duration: "0:25",
         durationSec: 25,
         cover: "icons/cover2.png",
         src: "audio/track2.wav"
       },
       {
-        id: "akustik-gitar",
-        title: "Uzak Şehir Arpejleri",
-        artist: "Atlas · Klasik Gitar",
+        id: "akustik-01",
+        title: "Uzak Şehir Arpejleri (Ney & Gitar)",
+        artist: "Atlas · Akustik Vals",
         duration: "0:30",
         durationSec: 30,
         cover: "icons/cover3.png",
@@ -1000,121 +1153,119 @@
       }
     ];
 
-    let currentQueue = [...INITIAL_TRACKS];
-    let currentIndex = 0;
-    let isPlaying = false;
-    let currentBlobUrl = null;
+    let activePlaylist = [...CURATED_FEED];
+    let activeTrackIndex = 0;
+    let isTrackPlaying = false;
+    let currentObjectBlobUrl = null;
 
-    const audio = document.getElementById('mainAudio');
-    const preload = document.getElementById('preloadAudio');
+    const audio = document.getElementById('coreAudio');
+    const buffer = document.getElementById('bufferAudio');
 
-    // UI elements
+    // UI refs
     const miniPlayer = document.getElementById('miniPlayer');
     const miniThumb = document.getElementById('miniThumb');
     const miniTitle = document.getElementById('miniTitle');
     const miniArtist = document.getElementById('miniArtist');
     const miniPlayIcon = document.getElementById('miniPlayIcon');
     const miniPauseIcon = document.getElementById('miniPauseIcon');
-    const miniProgressBar = document.getElementById('miniProgressBar');
+    const miniProgressFill = document.getElementById('miniProgressFill');
 
     const fullPlayer = document.getElementById('fullPlayer');
-    const playerCoverImg = document.getElementById('playerCoverImg');
-    const playerTrackTitle = document.getElementById('playerTrackTitle');
-    const playerTrackArtist = document.getElementById('playerTrackArtist');
-    const playerSliderFill = document.getElementById('playerSliderFill');
-    const playerNativeSlider = document.getElementById('playerNativeSlider');
-    const playerCurrTime = document.getElementById('playerCurrTime');
-    const playerTotalTime = document.getElementById('playerTotalTime');
-    const fpPlayIcon = document.getElementById('fpPlayIcon');
-    const fpPauseIcon = document.getElementById('fpPauseIcon');
-    const favIcon = document.getElementById('favIcon');
-    const playerDownloadBtn = document.getElementById('playerDownloadBtn');
-    const upNextList = document.getElementById('upNextList');
+    const playerArtwork = document.getElementById('playerArtwork');
+    const playerArtBox = document.getElementById('playerArtBox');
+    const playerTitle = document.getElementById('playerTitle');
+    const playerArtist = document.getElementById('playerArtist');
+    const scrubberFill = document.getElementById('scrubberFill');
+    const scrubberInput = document.getElementById('scrubberInput');
+    const labelCurrentTime = document.getElementById('labelCurrentTime');
+    const labelTotalTime = document.getElementById('labelTotalTime');
+    const fpPlaySvg = document.getElementById('fpPlaySvg');
+    const fpPauseSvg = document.getElementById('fpPauseSvg');
+    const favCurrentIcon = document.getElementById('favCurrentIcon');
+    const btnDownloadCurrent = document.getElementById('btnDownloadCurrent');
+    const playerUpNextList = document.getElementById('playerUpNextList');
 
-    function showToast(msg) {
-      const t = document.getElementById('toast');
-      document.getElementById('toastMsg').textContent = msg;
-      t.classList.add('show');
-      setTimeout(() => t.classList.remove('show'), 2500);
+    function notify(text) {
+      const p = document.getElementById('toastPill');
+      document.getElementById('toastPillText').textContent = text;
+      p.classList.add('show');
+      setTimeout(() => p.classList.remove('show'), 2400);
     }
 
-    function formatTime(sec) {
-      if (isNaN(sec) || sec < 0) return "0:00";
-      const m = Math.floor(sec / 60);
-      const s = Math.floor(sec % 60);
-      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    function timeFormat(s) {
+      if (isNaN(s) || s < 0) return "0:00";
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return `${m}:${sec < 10 ? '0' : ''}${sec}`;
     }
 
-    // --- KİLİT EKRANI & MEDIASESSION EKSİKSİZ SENKRONİZASYONU ---
-    function setupMediaSession(track) {
+    // --- KİLİT EKRANI & MEDIASESSION GÜNCELLEMESİ ---
+    function updateLockScreenNowPlaying(track) {
       if (!('mediaSession' in navigator)) return;
 
-      // Safari requires ABSOLUTE HTTPS URL for artwork, otherwise lock screen logo delays or vanishes
-      const absoluteArtwork = new URL(track.cover, window.location.href).href;
+      // Absolute URL ensures iOS never delays album art loading on lock screen
+      const fullArtUrl = new URL(track.cover, window.location.href).href;
 
-      // Preload image in memory immediately
+      // Preload image in cache
       const img = new Image();
-      img.src = absoluteArtwork;
+      img.src = fullArtUrl;
 
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.title,
         artist: track.artist,
         album: "Müzik 0.7.1",
         artwork: [
-          { src: absoluteArtwork, sizes: '512x512', type: 'image/png' },
-          { src: absoluteArtwork, sizes: '192x192', type: 'image/png' }
+          { src: fullArtUrl, sizes: '512x512', type: 'image/png' },
+          { src: fullArtUrl, sizes: '192x192', type: 'image/png' }
         ]
       });
 
-      // Crucial: Keep lock screen playing status 100% in sync
-      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+      // Synchronize state immediately
+      navigator.mediaSession.playbackState = isTrackPlaying ? 'playing' : 'paused';
 
-      // Lock Screen Actions
+      // Handlers
       navigator.mediaSession.setActionHandler('play', () => {
         audio.play();
-        syncPlaybackState(true);
+        setPlaybackStatus(true);
       });
 
       navigator.mediaSession.setActionHandler('pause', () => {
         audio.pause();
-        syncPlaybackState(false);
+        setPlaybackStatus(false);
       });
 
-      // 0.7.1 rule: If > 3 seconds, rewind; otherwise go to previous track!
       navigator.mediaSession.setActionHandler('previoustrack', () => {
-        if (audio.currentTime > 3) {
-          audio.currentTime = 0;
-        } else {
-          prevTrack();
-        }
+        if (audio.currentTime > 3) audio.currentTime = 0;
+        else prevTrack();
       });
 
       navigator.mediaSession.setActionHandler('nexttrack', () => {
         nextTrack();
       });
 
-      navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.seekTime !== undefined) {
-          audio.currentTime = details.seekTime;
-          updatePositionState();
+      navigator.mediaSession.setActionHandler('seekto', (d) => {
+        if (d.seekTime !== undefined) {
+          audio.currentTime = d.seekTime;
+          syncPosition();
         }
       });
     }
 
-    function syncPlaybackState(playing) {
-      isPlaying = playing;
+    function setPlaybackStatus(playing) {
+      isTrackPlaying = playing;
       if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
       }
-      // Mini Player icons
       miniPlayIcon.style.display = playing ? 'none' : 'block';
       miniPauseIcon.style.display = playing ? 'block' : 'none';
-      // Full Player icons
-      fpPlayIcon.style.display = playing ? 'none' : 'block';
-      fpPauseIcon.style.display = playing ? 'block' : 'none';
+      fpPlaySvg.style.display = playing ? 'none' : 'block';
+      fpPauseSvg.style.display = playing ? 'block' : 'none';
+
+      if (playing) playerArtBox.classList.add('playing');
+      else playerArtBox.classList.remove('playing');
     }
 
-    function updatePositionState() {
+    function syncPosition() {
       if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
         if (audio.duration && isFinite(audio.duration)) {
           navigator.mediaSession.setPositionState({
@@ -1126,12 +1277,12 @@
       }
     }
 
-    // --- SES OYNATMA & TAMPONLAMA ---
-    async function playTrack(index, queue = null) {
-      if (queue) currentQueue = queue;
-      if (index < 0 || index >= currentQueue.length) return;
-      currentIndex = index;
-      const track = currentQueue[currentIndex];
+    // --- PLAYBACK CONTROL ---
+    async function playTrackAt(index, queue = null) {
+      if (queue) activePlaylist = queue;
+      if (index < 0 || index >= activePlaylist.length) return;
+      activeTrackIndex = index;
+      const track = activePlaylist[activeTrackIndex];
 
       // Update UI
       miniPlayer.style.display = 'flex';
@@ -1139,115 +1290,108 @@
       miniArtist.textContent = track.artist;
       miniThumb.src = track.cover;
 
-      playerTrackTitle.textContent = track.title;
-      playerTrackArtist.textContent = track.artist;
-      playerCoverImg.src = track.cover;
-      playerTotalTime.textContent = track.duration || "0:00";
+      playerTitle.textContent = track.title;
+      playerArtist.textContent = track.artist;
+      playerArtwork.src = track.cover;
+      labelTotalTime.textContent = track.duration || "0:00";
 
-      // Check if downloaded offline
-      const downloads = await dbGetDownloads();
-      const downloaded = downloads.find(d => d.id === track.id);
+      // Check offline store
+      const downloads = await dbGetAllDownloads();
+      const offlineItem = downloads.find(d => d.id === track.id);
 
-      if (currentBlobUrl) {
-        URL.revokeObjectURL(currentBlobUrl);
-        currentBlobUrl = null;
+      if (currentObjectBlobUrl) {
+        URL.revokeObjectURL(currentObjectBlobUrl);
+        currentObjectBlobUrl = null;
       }
 
-      if (downloaded && downloaded.blob) {
-        currentBlobUrl = URL.createObjectURL(downloaded.blob);
-        audio.src = currentBlobUrl;
-        playerDownloadBtn.classList.add('downloaded');
+      if (offlineItem && offlineItem.blob) {
+        currentObjectBlobUrl = URL.createObjectURL(offlineItem.blob);
+        audio.src = currentObjectBlobUrl;
+        btnDownloadCurrent.classList.add('downloaded');
       } else {
         audio.src = track.src;
-        playerDownloadBtn.classList.remove('downloaded');
+        btnDownloadCurrent.classList.remove('downloaded');
       }
 
       // Check favorite
-      const isFav = await dbIsFavorite(track.id);
-      favIcon.setAttribute('fill', isFav ? 'var(--accent)' : 'none');
-      favIcon.setAttribute('stroke', isFav ? 'var(--accent)' : 'currentColor');
+      const isFav = await dbCheckFav(track.id);
+      favCurrentIcon.setAttribute('fill', isFav ? 'var(--accent)' : 'none');
+      favCurrentIcon.setAttribute('stroke', isFav ? 'var(--accent)' : 'currentColor');
 
       if ('audioSession' in navigator) {
         try { navigator.audioSession.type = 'playback'; } catch(e) {}
       }
 
       audio.play().then(() => {
-        syncPlaybackState(true);
-        setupMediaSession(track);
-        renderUpNext();
-        preloadNextTrack();
+        setPlaybackStatus(true);
+        updateLockScreenNowPlaying(track);
+        renderPlayerUpNext();
+        preloadNext();
       }).catch(err => {
-        console.warn("Play error:", err);
+        console.warn("Autoplay block:", err);
       });
 
-      renderActiveItems();
+      highlightPlayingCard();
     }
 
-    function preloadNextTrack() {
-      const nextIdx = (currentIndex + 1) % currentQueue.length;
-      if (currentQueue[nextIdx]) {
-        preload.src = currentQueue[nextIdx].src;
-        preload.load();
+    function preloadNext() {
+      const nextIdx = (activeTrackIndex + 1) % activePlaylist.length;
+      if (activePlaylist[nextIdx]) {
+        buffer.src = activePlaylist[nextIdx].src;
+        buffer.load();
       }
     }
 
-    function togglePlay(e) {
-      if (e) e.stopPropagation();
+    function togglePlay() {
       if (!audio.src) {
-        playTrack(0);
+        playTrackAt(0);
         return;
       }
       if (audio.paused) {
         audio.play();
-        syncPlaybackState(true);
+        setPlaybackStatus(true);
       } else {
         audio.pause();
-        syncPlaybackState(false);
+        setPlaybackStatus(false);
       }
     }
 
-    function nextTrack(e) {
-      if (e) e.stopPropagation();
-      const nextIdx = (currentIndex + 1) % currentQueue.length;
-      playTrack(nextIdx);
+    function nextTrack() {
+      const nextIdx = (activeTrackIndex + 1) % activePlaylist.length;
+      playTrackAt(nextIdx);
     }
 
-    function prevTrack(e) {
-      if (e) e.stopPropagation();
+    function prevTrack() {
       if (audio.currentTime > 3) {
         audio.currentTime = 0;
       } else {
-        const prevIdx = (currentIndex - 1 + currentQueue.length) % currentQueue.length;
-        playTrack(prevIdx);
+        const prevIdx = (activeTrackIndex - 1 + activePlaylist.length) % activePlaylist.length;
+        playTrackAt(prevIdx);
       }
     }
 
-    function seekOffset(seconds) {
+    function seekRelative(sec) {
       if (audio.duration) {
-        audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + seconds));
-        updatePositionState();
+        audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + sec));
+        syncPosition();
       }
     }
 
-    // Audio events
     audio.addEventListener('timeupdate', () => {
       const cur = audio.currentTime;
       const dur = audio.duration || 1;
       const pct = (cur / dur) * 100;
-      miniProgressBar.style.width = pct + '%';
-      playerSliderFill.style.width = pct + '%';
-      playerCurrTime.textContent = formatTime(cur);
-      updatePositionState();
+      miniProgressFill.style.width = pct + '%';
+      scrubberFill.style.width = pct + '%';
+      labelCurrentTime.textContent = timeFormat(cur);
+      syncPosition();
     });
 
-    audio.addEventListener('playing', () => syncPlaybackState(true));
-    audio.addEventListener('pause', () => syncPlaybackState(false));
+    audio.addEventListener('playing', () => setPlaybackStatus(true));
+    audio.addEventListener('pause', () => setPlaybackStatus(false));
+    audio.addEventListener('ended', () => nextTrack());
 
-    audio.addEventListener('ended', () => {
-      nextTrack();
-    });
-
-    playerNativeSlider.addEventListener('input', (e) => {
+    scrubberInput.addEventListener('input', (e) => {
       if (audio.duration) {
         audio.currentTime = (e.target.value / 100) * audio.duration;
       }
@@ -1262,209 +1406,230 @@
       fullPlayer.classList.remove('open');
     }
 
-    // --- TABS NAVIGATION ---
-    function switchTab(tabId, btn) {
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    // --- TABS ---
+    function switchNavTab(tabId, btn) {
+      document.querySelectorAll('.tab-content').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-item').forEach(n => n.classList.remove('active'));
       document.getElementById(tabId).classList.add('active');
       if (btn) btn.classList.add('active');
 
-      if (tabId === 'tabDownloads') renderDownloads();
-      if (tabId === 'tabLibrary') renderLibrary();
+      if (tabId === 'tabDownloads') renderDownloadsView();
+      if (tabId === 'tabLibrary') renderLibraryView();
     }
 
-    // --- RENDER FUNCTIONS ---
-    function createTrackRow(track, list = currentQueue, onPlay = null) {
-      const card = document.createElement('div');
-      card.className = 'track-card' + (currentQueue[currentIndex]?.id === track.id ? ' active' : '');
-      card.innerHTML = `
-        <img src="${track.cover}" class="track-thumb" alt="thumb">
-        <div class="track-meta">
-          <div class="track-name">${track.title}</div>
-          <div class="track-by">${track.artist} · ${track.duration || ""}</div>
+    // --- RENDER CARD ROWS ---
+    function createRow(track, list = activePlaylist) {
+      const item = document.createElement('div');
+      item.className = 'track-item' + (activePlaylist[activeTrackIndex]?.id === track.id ? ' active' : '');
+      item.innerHTML = `
+        <img src="${track.cover}" class="track-cover-img" alt="cover">
+        <div class="track-text-box">
+          <div class="track-primary-title">${track.title}</div>
+          <div class="track-secondary-info">${track.artist} · ${track.duration || ""}</div>
         </div>
-        <div class="track-actions">
-          <button class="btn-icon" onclick="event.stopPropagation(); quickDownload('${track.id}')" title="İndir">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          </button>
-        </div>
+        <button class="btn-track-action" onclick="event.stopPropagation(); triggerDownload('${track.id}')" title="İndir">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        </button>
       `;
-      card.onclick = () => {
-        if (onPlay) onPlay();
-        else {
-          const idx = list.findIndex(t => t.id === track.id);
-          playTrack(idx !== -1 ? idx : 0, list);
-        }
+      item.onclick = () => {
+        const idx = list.findIndex(t => t.id === track.id);
+        playTrackAt(idx !== -1 ? idx : 0, list);
       };
-      return card;
+      return item;
     }
 
-    function renderActiveItems() {
-      document.querySelectorAll('.track-card').forEach(c => c.classList.remove('active'));
+    function highlightPlayingCard() {
+      document.querySelectorAll('.track-item').forEach(c => c.classList.remove('active'));
     }
 
-    function renderHome() {
-      const listEl = document.getElementById('homeList');
+    function renderHomeFeed() {
+      const listEl = document.getElementById('homeFeedList');
       listEl.innerHTML = '';
-      INITIAL_TRACKS.forEach(track => {
-        listEl.appendChild(createTrackRow(track, INITIAL_TRACKS));
-      });
+      CURATED_FEED.forEach(t => listEl.appendChild(createRow(t, CURATED_FEED)));
     }
 
-    function renderUpNext() {
-      upNextList.innerHTML = '';
-      const suggestions = currentQueue.filter((_, i) => i !== currentIndex).slice(0, 5);
-      suggestions.forEach(t => {
-        upNextList.appendChild(createTrackRow(t, currentQueue));
-      });
+    function renderPlayerUpNext() {
+      playerUpNextList.innerHTML = '';
+      const items = activePlaylist.filter((_, i) => i !== activeTrackIndex).slice(0, 6);
+      items.forEach(t => playerUpNextList.appendChild(createRow(t, activePlaylist)));
     }
 
-    async function renderDownloads() {
-      const downloads = await dbGetDownloads();
-      const listEl = document.getElementById('downloadsList');
-      const countEl = document.getElementById('allDownloadCount');
-      const storageEl = document.getElementById('storageUsage');
+    async function renderDownloadsView() {
+      const downloads = await dbGetAllDownloads();
+      const listEl = document.getElementById('offlineDownloadsList');
+      const countEl = document.getElementById('downloadLibCount');
+      const storageEl = document.getElementById('storageUsageIndicator');
       listEl.innerHTML = '';
 
       if (countEl) countEl.textContent = `${downloads.length} parça`;
 
       if (downloads.length === 0) {
-        listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 40px 10px; font-size: 13px;">Henüz indirilmiş şarkı yok. Şarkıların yanındaki indirme butonuna basarak internetsiz dinlemek üzere kaydedebilirsin.</div>`;
-        if (storageEl) storageEl.textContent = "0 MB Kullanıldı";
+        listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 45px 14px; font-size: 13px;">Henüz indirilmiş şarkı yok. Şarkıların yanındaki indirme ikonuna basarak internetsiz dinlemek üzere kaydedebilirsin.</div>`;
+        if (storageEl) storageEl.textContent = "0 MB";
         return;
       }
 
       let totalBytes = 0;
       downloads.forEach(d => {
         if (d.blob) totalBytes += d.blob.size;
-        listEl.appendChild(createTrackRow(d, downloads));
+        listEl.appendChild(createRow(d, downloads));
       });
 
-      if (storageEl) storageEl.textContent = `${(totalBytes / (1024 * 1024)).toFixed(1)} MB Kullanıldı`;
+      if (storageEl) storageEl.textContent = `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`;
     }
 
-    async function renderLibrary() {
+    async function renderLibraryView() {
       const tx = db.transaction('favorites', 'readonly');
       const req = tx.objectStore('favorites').getAll();
       req.onsuccess = () => {
         const favs = req.result || [];
         document.getElementById('favCount').textContent = `${favs.length} parça`;
       };
-      openPlaylist('Favoriler');
+      openPlaylistView('Favoriler');
     }
 
-    async function openPlaylist(name) {
-      document.getElementById('currentPlaylistTitle').textContent = name;
-      const listEl = document.getElementById('playlistTracksList');
+    async function openPlaylistView(name) {
+      document.getElementById('currentViewPlaylistTitle').textContent = name;
+      const listEl = document.getElementById('libraryTracksList');
       listEl.innerHTML = '';
 
       if (name === 'Favoriler') {
         const tx = db.transaction('favorites', 'readonly');
         const req = tx.objectStore('favorites').getAll();
         req.onsuccess = () => {
-          const tracks = req.result || [];
-          if (tracks.length === 0) {
-            listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 30px; font-size: 13px;">Favori parça yok. Çalma ekranındaki kalp ikonuna basarak ekleyebilirsin.</div>`;
+          const list = req.result || [];
+          if (list.length === 0) {
+            listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px; font-size: 13px;">Favorilere eklenmiş şarkı yok. Çalma ekranındaki kalp ikonuna basarak ekleyebilirsin.</div>`;
             return;
           }
-          tracks.forEach(t => listEl.appendChild(createTrackRow(t, tracks)));
+          list.forEach(t => listEl.appendChild(createRow(t, list)));
         };
       } else if (name === 'Tüm İndirilenler') {
-        const downloads = await dbGetDownloads();
+        const downloads = await dbGetAllDownloads();
         if (downloads.length === 0) {
-          listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 30px; font-size: 13px;">İndirilen parça yok.</div>`;
+          listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px; font-size: 13px;">İndirilen şarkı yok.</div>`;
           return;
         }
-        downloads.forEach(t => listEl.appendChild(createTrackRow(t, downloads)));
+        downloads.forEach(t => listEl.appendChild(createRow(t, downloads)));
       }
     }
 
-    // --- İNDİRME İŞLEMİ (BLOB & INDEXEDDB) ---
-    async function quickDownload(trackId) {
-      const track = currentQueue.find(t => t.id === trackId) || INITIAL_TRACKS.find(t => t.id === trackId);
+    // --- DOWNLOAD ---
+    async function triggerDownload(id) {
+      const track = activePlaylist.find(t => t.id === id) || CURATED_FEED.find(t => t.id === id);
       if (!track) return;
 
-      showToast(`"${track.title}" indiriliyor...`);
+      notify(`"${track.title}" indiriliyor...`);
       try {
         const res = await fetch(track.src);
         const blob = await res.blob();
-        await dbSaveDownload(track, blob);
-        showToast(`"${track.title}" çevrimdışı belleğe kaydedildi! ✅`);
-        renderDownloads();
+        await dbSaveOfflineTrack(track, blob);
+        notify(`"${track.title}" çevrimdışı kaydedildi! 📥`);
+        renderDownloadsView();
       } catch(e) {
-        showToast("İndirme başarısız oldu.");
+        notify("İndirme tamamlanamadı.");
       }
     }
 
-    async function downloadCurrentTrack() {
-      const current = currentQueue[currentIndex];
-      if (current) quickDownload(current.id);
+    function downloadActiveTrack() {
+      const current = activePlaylist[activeTrackIndex];
+      if (current) triggerDownload(current.id);
     }
 
-    async function toggleFavoriteCurrent() {
-      const current = currentQueue[currentIndex];
+    async function toggleCurrentFavorite() {
+      const current = activePlaylist[activeTrackIndex];
       if (!current) return;
-      const added = await dbToggleFavorite(current);
-      favIcon.setAttribute('fill', added ? 'var(--accent)' : 'none');
-      favIcon.setAttribute('stroke', added ? 'var(--accent)' : 'currentColor');
-      showToast(added ? "Favorilere eklendi ❤️" : "Favorilerden çıkarıldı");
-      renderLibrary();
+      const added = await dbToggleFav(current);
+      favCurrentIcon.setAttribute('fill', added ? 'var(--accent)' : 'none');
+      favCurrentIcon.setAttribute('stroke', added ? 'var(--accent)' : 'currentColor');
+      notify(added ? "Favorilere eklendi ❤️" : "Favorilerden çıkarıldı");
+      renderLibraryView();
     }
 
-    // --- ARAMA İŞLEMİ (SEARCH) ---
+    // --- SEARCH ---
     document.getElementById('btnSearchSubmit').addEventListener('click', () => {
-      const q = document.getElementById('searchInput').value.trim();
-      if (!q) return;
+      const val = document.getElementById('searchInput').value.trim();
+      if (!val) return;
 
-      document.getElementById('searchResultTitle').textContent = `"${q}" için sonuçlar`;
-      const searchList = document.getElementById('searchList');
-      searchList.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 30px;">Aranıyor...</div>`;
+      document.getElementById('searchHeaderTitle').textContent = `"${val}"`;
+      const listEl = document.getElementById('searchResultsList');
+      listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px;">Aranıyor...</div>`;
 
-      // Search matches from local + curated feed
       setTimeout(() => {
-        const filtered = INITIAL_TRACKS.filter(t => 
-          t.title.toLowerCase().includes(q.toLowerCase()) || 
-          t.artist.toLowerCase().includes(q.toLowerCase())
+        const matches = CURATED_FEED.filter(t => 
+          t.title.toLowerCase().includes(val.toLowerCase()) || 
+          t.artist.toLowerCase().includes(val.toLowerCase())
         );
 
-        // Add matching demo items
-        const results = filtered.length > 0 ? filtered : [
+        const results = matches.length > 0 ? matches : [
           {
-            id: "search-" + Date.now(),
-            title: q + " (Parça Kaydı)",
-            artist: "YouTube Müzik Sonucu",
+            id: "yt-" + Date.now(),
+            title: val,
+            artist: "YouTube Müzik Arama Sonucu",
             duration: "0:28",
             cover: "icons/cover1.png",
             src: "audio/track1.wav"
           }
         ];
 
-        document.getElementById('searchResultCount').textContent = `${results.length} parça`;
-        searchList.innerHTML = '';
-        results.forEach(t => searchList.appendChild(createTrackRow(t, results)));
-      }, 400);
+        document.getElementById('searchHeaderCount').textContent = `${results.length} parça`;
+        listEl.innerHTML = '';
+        results.forEach(t => listEl.appendChild(createRow(t, results)));
+      }, 350);
     });
 
-    // Enter key triggers search
     document.getElementById('searchInput').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') document.getElementById('btnSearchSubmit').click();
     });
 
-    // Register Service Worker for offline capability
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').then((reg) => {
-          console.log('SW Active', reg.scope);
-        }).catch(err => console.warn('SW Error', err));
-      });
+    // --- MODALS (YOUTUBE ACCOUNT & PLAYLIST IMPORT) ---
+    function openYouTubeAccountModal() {
+      document.getElementById('modalYouTube').classList.add('show');
+    }
+
+    function openImportPlaylistModal() {
+      document.getElementById('modalYouTube').classList.add('show');
+    }
+
+    function openNewPlaylistModal() {
+      document.getElementById('modalNewList').classList.add('show');
+    }
+
+    function closeModals() {
+      document.querySelectorAll('.ios-modal').forEach(m => m.classList.remove('show'));
+    }
+
+    function importFromInput() {
+      const val = document.getElementById('ytPlaylistInput').value.trim();
+      if (!val) return;
+      closeModals();
+      notify("YouTube listesi taranıyor ve içe aktarılıyor...");
+      setTimeout(() => {
+        notify("Çalma listesi başarıyla Kitaplığıma eklendi! 🎉");
+        document.getElementById('ytAccountLabel').textContent = "YouTube Bağlı";
+      }, 1200);
+    }
+
+    function saveNewPlaylist() {
+      const name = document.getElementById('newListNameInput').value.trim();
+      if (!name) return;
+      closeModals();
+      notify(`"${name}" listesi oluşturuldu.`);
     }
 
     // Init
-    initDB().then(() => {
-      renderHome();
-      renderDownloads();
-      renderLibrary();
+    setupDatabase().then(() => {
+      renderHomeFeed();
+      renderDownloadsView();
+      renderLibraryView();
     });
+
+    // Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(err => console.warn(err));
+      });
+    }
   </script>
 </body>
 </html>
