@@ -1,4 +1,4 @@
-const CACHE_NAME = 'muzik-pwa-v9';
+const CACHE_NAME = 'muzik-pwa-v11';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

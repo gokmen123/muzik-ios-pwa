@@ -1372,105 +1372,141 @@
   <script>
     // --- INDEXEDDB (OFFLINE DEPOLAMA & LİSTELER) ---
     const DB_NAME = 'MuzikStoreDB';
-    const DB_VER = 1;
+    const DB_VER = 2;
     let db;
     let downloadedTrackIds = new Set();
 
     function setupDatabase() {
-      return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VER);
-        req.onupgradeneeded = (e) => {
-          const d = e.target.result;
-          if (!d.objectStoreNames.contains('downloads')) d.createObjectStore('downloads', { keyPath: 'id' });
-          if (!d.objectStoreNames.contains('favorites')) d.createObjectStore('favorites', { keyPath: 'id' });
-          if (!d.objectStoreNames.contains('playlists')) d.createObjectStore('playlists', { keyPath: 'name' });
-        };
-        req.onsuccess = async () => {
-          db = req.result;
-          await refreshDownloadedIds();
-          resolve(db);
-        };
-        req.onerror = () => reject(req.error);
+      return new Promise((resolve) => {
+        try {
+          if (!window.indexedDB) return resolve(null);
+          const req = indexedDB.open(DB_NAME, DB_VER);
+          req.onupgradeneeded = (e) => {
+            const d = e.target.result;
+            if (!d.objectStoreNames.contains('downloads')) d.createObjectStore('downloads', { keyPath: 'id' });
+            if (!d.objectStoreNames.contains('favorites')) d.createObjectStore('favorites', { keyPath: 'id' });
+            if (!d.objectStoreNames.contains('playlists')) d.createObjectStore('playlists', { keyPath: 'name' });
+          };
+          req.onsuccess = async () => {
+            db = req.result;
+            try { await refreshDownloadedIds(); } catch(e) {}
+            resolve(db);
+          };
+          req.onerror = () => resolve(null);
+        } catch(e) {
+          resolve(null);
+        }
       });
     }
 
     async function refreshDownloadedIds() {
-      const downloads = await dbGetAllDownloads();
-      downloadedTrackIds = new Set(downloads.map(d => d.id));
-      const countEl = document.getElementById('downloadLibCount');
-      if (countEl) countEl.textContent = `${downloads.length} parça`;
-      const storageEl = document.getElementById('storageUsageIndicator');
-      if (storageEl) {
-        let totalBytes = 0;
-        downloads.forEach(d => { if (d.blob) totalBytes += d.blob.size; });
-        storageEl.textContent = `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`;
-      }
+      try {
+        const downloads = await dbGetAllDownloads();
+        downloadedTrackIds = new Set(downloads.map(d => d.id));
+        const countEl = document.getElementById('downloadLibCount');
+        if (countEl) countEl.textContent = `${downloads.length} parça`;
+        const storageEl = document.getElementById('storageUsageIndicator');
+        if (storageEl) {
+          let totalBytes = 0;
+          downloads.forEach(d => { if (d.blob) totalBytes += d.blob.size; });
+          storageEl.textContent = `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`;
+        }
+      } catch(e) {}
     }
 
     async function dbSaveOfflineTrack(track, blob) {
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction('downloads', 'readwrite');
-        tx.objectStore('downloads').put({ ...track, blob, downloadedAt: Date.now() });
-        tx.oncomplete = async () => {
-          await refreshDownloadedIds();
+      return new Promise((resolve) => {
+        if (!db || !db.objectStoreNames || !db.objectStoreNames.contains('downloads')) return resolve();
+        try {
+          const tx = db.transaction('downloads', 'readwrite');
+          tx.objectStore('downloads').put({ ...track, blob, downloadedAt: Date.now() });
+          tx.oncomplete = async () => {
+            await refreshDownloadedIds();
+            resolve();
+          };
+          tx.onerror = () => resolve();
+        } catch(e) {
           resolve();
-        };
-        tx.onerror = () => reject(tx.error);
+        }
       });
     }
 
     async function dbGetAllDownloads() {
       return new Promise((resolve) => {
-        if (!db) return resolve([]);
-        const tx = db.transaction('downloads', 'readonly');
-        const req = tx.objectStore('downloads').getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => resolve([]);
+        if (!db || !db.objectStoreNames || !db.objectStoreNames.contains('downloads')) return resolve([]);
+        try {
+          const tx = db.transaction('downloads', 'readonly');
+          const req = tx.objectStore('downloads').getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        } catch(e) {
+          resolve([]);
+        }
       });
     }
 
     async function dbToggleFav(track) {
       return new Promise((resolve) => {
-        const tx = db.transaction('favorites', 'readwrite');
-        const store = tx.objectStore('favorites');
-        const getReq = store.get(track.id);
-        getReq.onsuccess = () => {
-          if (getReq.result) {
-            store.delete(track.id);
-            resolve(false);
-          } else {
-            store.put(track);
-            resolve(true);
-          }
-        };
+        if (!db || !db.objectStoreNames || !db.objectStoreNames.contains('favorites')) return resolve(false);
+        try {
+          const tx = db.transaction('favorites', 'readwrite');
+          const store = tx.objectStore('favorites');
+          const getReq = store.get(track.id);
+          getReq.onsuccess = () => {
+            if (getReq.result) {
+              store.delete(track.id);
+              resolve(false);
+            } else {
+              store.put(track);
+              resolve(true);
+            }
+          };
+          getReq.onerror = () => resolve(false);
+        } catch(e) {
+          resolve(false);
+        }
       });
     }
 
     async function dbCheckFav(id) {
       return new Promise((resolve) => {
-        if (!db) return resolve(false);
-        const tx = db.transaction('favorites', 'readonly');
-        const req = tx.objectStore('favorites').get(id);
-        req.onsuccess = () => resolve(Boolean(req.result));
-        req.onerror = () => resolve(false);
+        if (!db || !db.objectStoreNames || !db.objectStoreNames.contains('favorites')) return resolve(false);
+        try {
+          const tx = db.transaction('favorites', 'readonly');
+          const req = tx.objectStore('favorites').get(id);
+          req.onsuccess = () => resolve(Boolean(req.result));
+          req.onerror = () => resolve(false);
+        } catch(e) {
+          resolve(false);
+        }
       });
     }
 
     async function dbSavePlaylist(name, tracks) {
       return new Promise((resolve) => {
-        const tx = db.transaction('playlists', 'readwrite');
-        tx.objectStore('playlists').put({ name, tracks, updatedAt: Date.now() });
-        tx.oncomplete = () => resolve();
+        if (!db || !db.objectStoreNames || !db.objectStoreNames.contains('playlists')) return resolve();
+        try {
+          const tx = db.transaction('playlists', 'readwrite');
+          tx.objectStore('playlists').put({ name, tracks, updatedAt: Date.now() });
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+        } catch(e) {
+          resolve();
+        }
       });
     }
 
     async function dbGetAllPlaylists() {
       return new Promise((resolve) => {
-        if (!db) return resolve([]);
-        const tx = db.transaction('playlists', 'readonly');
-        const req = tx.objectStore('playlists').getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => resolve([]);
+        if (!db || !db.objectStoreNames || !db.objectStoreNames.contains('playlists')) return resolve([]);
+        try {
+          const tx = db.transaction('playlists', 'readonly');
+          const req = tx.objectStore('playlists').getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        } catch(e) {
+          resolve([]);
+        }
       });
     }
 
@@ -1909,12 +1945,21 @@
     }
 
     async function renderLibraryView() {
-      const tx = db.transaction('favorites', 'readonly');
-      const req = tx.objectStore('favorites').getAll();
-      req.onsuccess = () => {
-        const favs = req.result || [];
-        document.getElementById('favCount').textContent = `${favs.length} parça`;
-      };
+      const favCountEl = document.getElementById('favCount');
+      if (db && db.objectStoreNames && db.objectStoreNames.contains('favorites')) {
+        try {
+          const tx = db.transaction('favorites', 'readonly');
+          const req = tx.objectStore('favorites').getAll();
+          req.onsuccess = () => {
+            const favs = req.result || [];
+            if (favCountEl) favCountEl.textContent = `${favs.length} parça`;
+          };
+        } catch(e) {
+          if (favCountEl) favCountEl.textContent = "0 parça";
+        }
+      } else {
+        if (favCountEl) favCountEl.textContent = "0 parça";
+      }
 
       // Ayrıca kayıtlı listeleri yükle
       const playlists = await dbGetAllPlaylists();
@@ -1923,7 +1968,7 @@
       const baseCards = `
         <div class="lib-card" onclick="openPlaylistView('Favoriler')">
           <div class="lib-card-title">❤️ Favoriler</div>
-          <div class="lib-card-subtitle" id="favCount">Yükleniyor...</div>
+          <div class="lib-card-subtitle" id="favCount">0 parça</div>
         </div>
         <div class="lib-card" onclick="openPlaylistView('Tüm İndirilenler')">
           <div class="lib-card-title">📥 Tüm İndirilenler</div>
@@ -1950,16 +1995,27 @@
       listEl.innerHTML = '';
 
       if (name === 'Favoriler') {
-        const tx = db.transaction('favorites', 'readonly');
-        const req = tx.objectStore('favorites').getAll();
-        req.onsuccess = () => {
-          const list = req.result || [];
-          if (list.length === 0) {
-            listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px; font-size: 13px;">Favorilere eklenmiş şarkı yok. Çalma ekranındaki kalp ikonuna basarak ekleyebilirsin.</div>`;
-            return;
-          }
-          list.forEach(t => listEl.appendChild(createRow(t, list)));
-        };
+        if (!db || !db.objectStoreNames || !db.objectStoreNames.contains('favorites')) {
+          listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px; font-size: 13px;">Favorilere eklenmiş şarkı yok. Çalma ekranındaki kalp ikonuna basarak ekleyebilirsin.</div>`;
+          return;
+        }
+        try {
+          const tx = db.transaction('favorites', 'readonly');
+          const req = tx.objectStore('favorites').getAll();
+          req.onsuccess = () => {
+            const list = req.result || [];
+            if (list.length === 0) {
+              listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px; font-size: 13px;">Favorilere eklenmiş şarkı yok. Çalma ekranındaki kalp ikonuna basarak ekleyebilirsin.</div>`;
+              return;
+            }
+            list.forEach(t => listEl.appendChild(createRow(t, list)));
+          };
+          req.onerror = () => {
+            listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px; font-size: 13px;">Favorilere eklenmiş şarkı yok.</div>`;
+          };
+        } catch(e) {
+          listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px; font-size: 13px;">Favorilere eklenmiş şarkı yok.</div>`;
+        }
       } else if (name === 'Tüm İndirilenler') {
         const downloads = await dbGetAllDownloads();
         if (downloads.length === 0) {
@@ -2129,9 +2185,6 @@
         results.forEach(t => listEl.appendChild(createRow(t, results)));
       }, 250);
     });
-        results.forEach(t => listEl.appendChild(createRow(t, results)));
-      }, 300);
-    });
 
     document.getElementById('searchInput').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') document.getElementById('btnSearchSubmit').click();
@@ -2298,18 +2351,21 @@
       }
     }
 
-    // Init & Persistent Offline Storage
+    // 1. ANINDA VE KOŞULSUZ RENDER (Sayfa açıldığı milisaniyede tüm şarkılar ve butonlar hazır olur!)
+    renderHomeFeed();
+    initNavTabBar();
+
     if (navigator.storage && navigator.storage.persist) {
       navigator.storage.persist().catch(() => {});
     }
-
-    initNavTabBar();
 
     setupDatabase().then(() => {
       renderHomeFeed();
       renderDownloadsView();
       renderLibraryView();
       initNavTabBar();
+    }).catch(err => {
+      console.warn("DB setup error (fallback active):", err);
     });
 
     // Service Worker v6
