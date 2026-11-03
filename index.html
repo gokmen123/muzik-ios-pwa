@@ -1511,7 +1511,39 @@
     }
 
     // --- CURATED FEED (0.7.1 EŞİTLEMESİ & AMBİYANS IŞIĞI) ---
-    const CURATED_FEED = [
+    // --- STREAM INSTANCE FALLBACK ---
+    // Birden fazla Invidious instance dene; ilk yanıt vereni kullan
+    const INVIDIOUS_INSTANCES = [
+      "https://yt.chocolatemoo53.com",
+      "https://inv.nadeko.net",
+      "https://invidious.nerdvpn.de",
+      "https://iv.datura.network"
+    ];
+
+    // Çalışan instance'ı cache'le (her yükleme için geçerli)
+    let _cachedInstance = null;
+
+    async function getWorkingInstance() {
+      if (_cachedInstance) return _cachedInstance;
+      for (const inst of INVIDIOUS_INSTANCES) {
+        try {
+          const r = await fetch(`${inst}/api/v1/stats`, { signal: AbortSignal.timeout(3000) });
+          if (r.ok) { _cachedInstance = inst; return inst; }
+        } catch {}
+      }
+      return INVIDIOUS_INSTANCES[0]; // en azından dene
+    }
+
+    function buildStreamUrl(videoId, instance) {
+      return `${instance}/latest_version?id=${videoId}&itag=140&local=true`;
+    }
+
+    async function getStreamUrl(videoId) {
+      const inst = await getWorkingInstance();
+      return buildStreamUrl(videoId, inst);
+    }
+
+        const CURATED_FEED = [
       {
         id: "310yTVKpd_A",
         title: "Erik Dalı & Huriyem (Ankara Oyun Havası)",
@@ -1698,80 +1730,119 @@
     }
 
     // --- PLAYBACK ENGINE ---
+    let _playSeq = 0; // Her yeni track için artar; stale callback'leri iptal eder
+
     function playTrackAt(index, queue = null) {
       if (queue) activePlaylist = queue;
       if (index < 0 || index >= activePlaylist.length) return;
       activeTrackIndex = index;
       const track = activePlaylist[activeTrackIndex];
+      const seq = ++_playSeq;
 
-      // 1. iOS Safari jest token'ı canlıyken ANINDA audio.play() çağrılmalı (ASLA await beklenmez!)
       if (currentObjectBlobUrl) {
         URL.revokeObjectURL(currentObjectBlobUrl);
         currentObjectBlobUrl = null;
       }
 
+      // Blob (indirilen) varsa hemen oyna
       if (track.blob) {
         currentObjectBlobUrl = URL.createObjectURL(track.blob);
-        audio.src = currentObjectBlobUrl;
-      } else if (track.src) {
-        audio.src = track.src;
-      } else if (track.id) {
-        audio.src = `https://yt.chocolatemoo53.com/latest_version?id=${track.id}&itag=140&local=true`;
+        _doPlay(audio, currentObjectBlobUrl, track, seq);
+        return;
       }
 
-      audio.load();
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
+      // Canlı stream: önce UI'yi güncelle, sonra URL'yi çöz
+      _updateTrackUI(track);
+      notify("⏳ Yükleniyor...", 2500);
+
+      (async () => {
+        let url = track.src;
+        // src yoksa veya stale default URL ise instance'tan taze al
+        if (!url || url.includes("chocolatemoo53") === false) {
+          // src varsa kullan, yoksa id'den üret
+          if (track.id) {
+            url = await getStreamUrl(track.id);
+          }
+        }
+        if (seq !== _playSeq) return; // Kullanıcı farklı şarkıya geçti
+        _doPlay(audio, url, track, seq);
+      })();
+    }
+
+    function _doPlay(audioEl, url, track, seq) {
+      audioEl.pause();
+      audioEl.src = url;
+      audioEl.load();
+
+      // canplay'i bekle (max 8 sn) - özellikle ilk açılışta gecikmeyi maskeler
+      const onCanPlay = () => {
+        if (seq !== _playSeq) return;
+        audioEl.removeEventListener('canplay', onCanPlay);
+        clearTimeout(playTimeout);
+        const p = audioEl.play();
+        if (p) p.then(() => {
           setPlaybackStatus(true);
           updateLockScreenNowPlaying(track);
           renderPlayerUpNext();
           preloadNext();
         }).catch(err => {
           console.warn("Playback error:", err);
-          notify("Çalma başlatıldı (ses seviyenizi kontrol edin)");
+          // Bir kez daha dene (iOS gesture token timeout'u)
+          setTimeout(() => { if (seq === _playSeq) audioEl.play().catch(() => {}); }, 400);
         });
-      }
+      };
+      audioEl.addEventListener('canplay', onCanPlay, { once: true });
 
-      // 2. Anında UI güncellemesi
+      // 8 saniyede hâlâ canplay gelmediyse yine de play dene (buffering başlamış olabilir)
+      const playTimeout = setTimeout(() => {
+        if (seq !== _playSeq) return;
+        audioEl.removeEventListener('canplay', onCanPlay);
+        audioEl.play().catch(() => {});
+      }, 8000);
+    }
+
+      // UI anında güncelle (async stream resolve beklenmez)
+      _updateTrackUI(track);
+    }
+
+    function _updateTrackUI(track) {
       miniPlayer.style.display = 'flex';
       miniTitle.textContent = track.title;
       miniArtist.textContent = track.artist;
-      miniThumb.src = track.cover;
+      if (track.cover) miniThumb.src = track.cover;
 
       playerTitle.textContent = track.title;
       playerArtist.textContent = track.artist;
-      playerArtwork.src = track.cover;
+      if (track.cover) playerArtwork.src = track.cover;
       labelTotalTime.textContent = track.duration || "0:00";
 
       if (track.glow) {
         ambientGlow.style.background = `radial-gradient(circle, ${track.glow} 0%, transparent 68%)`;
       }
-
       highlightPlayingCard();
 
-      // 3. Arka plan kontrolleri (çalma başladıktan sonra)
       dbCheckFav(track.id).then(isFav => {
         favCurrentIcon.setAttribute('fill', isFav ? 'var(--accent-red)' : 'none');
         favCurrentIcon.setAttribute('stroke', isFav ? 'var(--accent-red)' : 'currentColor');
       });
-
       dbGetAllDownloads().then(downloads => {
         const dl = downloads.find(d => d.id === track.id);
-        if (dl) {
-          btnDownloadCurrent.classList.add('downloaded');
-        } else {
-          btnDownloadCurrent.classList.remove('downloaded');
-        }
+        btnDownloadCurrent.classList.toggle('downloaded', !!dl);
       });
     }
 
     function preloadNext() {
       const nextIdx = (activeTrackIndex + 1) % activePlaylist.length;
-      if (activePlaylist[nextIdx]) {
-        buffer.src = activePlaylist[nextIdx].src;
+      const next = activePlaylist[nextIdx];
+      if (!next) return;
+      (async () => {
+        let url = next.blob
+          ? URL.createObjectURL(next.blob)
+          : (next.src || (next.id ? await getStreamUrl(next.id) : null));
+        if (!url) return;
+        buffer.src = url;
         buffer.load();
-      }
+      })();
     }
 
     function togglePlay() {
@@ -2188,7 +2259,8 @@
       // YouTube API Arama (Invidious CORS API)
       let ytMatches = [];
       try {
-        const res = await fetch(`https://yt.chocolatemoo53.com/api/v1/search?q=${encodeURIComponent(val)}&type=video`, {
+        const searchInst = await getWorkingInstance();
+        const res = await fetch(`${searchInst}/api/v1/search?q=${encodeURIComponent(val)}&type=video`, {
           signal: AbortSignal.timeout(7000)
         });
         if (res.ok) {
@@ -2203,7 +2275,7 @@
                 duration: timeFormat(sec),
                 durationSec: sec,
                 cover: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
-                src: `https://yt.chocolatemoo53.com/latest_version?id=${item.videoId}&itag=140&local=true`,
+                src: buildStreamUrl(item.videoId, searchInst),
                 glow: "rgba(239, 68, 68, 0.45)"
               };
             });
