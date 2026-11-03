@@ -1339,6 +1339,7 @@
     const DB_NAME = 'MuzikStoreDB';
     const DB_VER = 1;
     let db;
+    let downloadedTrackIds = new Set();
 
     function setupDatabase() {
       return new Promise((resolve, reject) => {
@@ -1349,16 +1350,36 @@
           if (!d.objectStoreNames.contains('favorites')) d.createObjectStore('favorites', { keyPath: 'id' });
           if (!d.objectStoreNames.contains('playlists')) d.createObjectStore('playlists', { keyPath: 'name' });
         };
-        req.onsuccess = () => { db = req.result; resolve(db); };
+        req.onsuccess = async () => {
+          db = req.result;
+          await refreshDownloadedIds();
+          resolve(db);
+        };
         req.onerror = () => reject(req.error);
       });
+    }
+
+    async function refreshDownloadedIds() {
+      const downloads = await dbGetAllDownloads();
+      downloadedTrackIds = new Set(downloads.map(d => d.id));
+      const countEl = document.getElementById('downloadLibCount');
+      if (countEl) countEl.textContent = `${downloads.length} parça`;
+      const storageEl = document.getElementById('storageUsageIndicator');
+      if (storageEl) {
+        let totalBytes = 0;
+        downloads.forEach(d => { if (d.blob) totalBytes += d.blob.size; });
+        storageEl.textContent = `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`;
+      }
     }
 
     async function dbSaveOfflineTrack(track, blob) {
       return new Promise((resolve, reject) => {
         const tx = db.transaction('downloads', 'readwrite');
         tx.objectStore('downloads').put({ ...track, blob, downloadedAt: Date.now() });
-        tx.oncomplete = () => resolve();
+        tx.oncomplete = async () => {
+          await refreshDownloadedIds();
+          resolve();
+        };
         tx.onerror = () => reject(tx.error);
       });
     }
@@ -1735,17 +1756,31 @@
 
     // --- RENDER CARD ROWS ---
     function createRow(track, list = activePlaylist) {
+      const isDl = downloadedTrackIds.has(track.id) || Boolean(track.blob);
       const item = document.createElement('div');
       item.className = 'track-item' + (activePlaylist[activeTrackIndex]?.id === track.id ? ' active' : '');
       item.innerHTML = `
         <img src="${track.cover}" class="track-cover-img" alt="cover">
         <div class="track-text-box">
           <div class="track-primary-title">${track.title}</div>
-          <div class="track-secondary-info">${track.artist} · ${track.duration || ""}</div>
+          <div class="track-secondary-info">
+            ${track.artist} · ${track.duration || ""}
+            ${isDl ? '<span style="color: var(--success); font-weight: 700; margin-left: 5px;">● Çevrimdışı</span>' : ''}
+          </div>
         </div>
         <div class="track-actions-box">
-          <button class="btn-track-action" onclick="event.stopPropagation(); triggerDownload('${track.id}')" title="İndir">
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <button class="btn-track-action ${isDl ? 'downloaded' : ''}" onclick="event.stopPropagation(); triggerDownload('${track.id}')" title="${isDl ? 'İndirildi (Cihazda Kayıtlı)' : 'İndir'}">
+            ${isDl ? `
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            ` : `
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+            `}
           </button>
         </div>
       `;
@@ -1905,7 +1940,7 @@
     }
 
     // --- SEARCH ---
-    document.getElementById('btnSearchSubmit').addEventListener('click', () => {
+    document.getElementById('btnSearchSubmit').addEventListener('click', async () => {
       const val = document.getElementById('searchInput').value.trim();
       if (!val) return;
 
@@ -1913,17 +1948,35 @@
       const listEl = document.getElementById('searchResultsList');
       listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px;">Aranıyor...</div>`;
 
-      setTimeout(() => {
-        const matches = CURATED_FEED.filter(t => 
-          t.title.toLowerCase().includes(val.toLowerCase()) || 
-          t.artist.toLowerCase().includes(val.toLowerCase())
+      setTimeout(async () => {
+        const q = val.toLowerCase();
+        const downloads = await dbGetAllDownloads();
+        const playlists = await dbGetAllPlaylists();
+
+        // Tüm kaynakları bir havuzda topla (öncelik indirilenler ve kitaplık)
+        const allPool = [];
+        downloads.forEach(d => allPool.push(d));
+        CURATED_FEED.forEach(c => allPool.push(c));
+        playlists.forEach(pl => {
+          (pl.tracks || []).forEach(t => allPool.push(t));
+        });
+
+        // ID veya başlığa göre tekilleştir
+        const uniqueMap = new Map();
+        allPool.forEach(item => {
+          if (!uniqueMap.has(item.id)) uniqueMap.set(item.id, item);
+        });
+
+        const matches = Array.from(uniqueMap.values()).filter(t => 
+          (t.title && t.title.toLowerCase().includes(q)) || 
+          (t.artist && t.artist.toLowerCase().includes(q))
         );
 
         const results = matches.length > 0 ? matches : [
           {
             id: "yt-" + Date.now(),
             title: val,
-            artist: "YouTube Müzik Parçası",
+            artist: "YouTube Müzik Arama Sonucu",
             duration: "0:28",
             cover: "icons/cover1.png",
             src: "audio/track1.wav",
@@ -1933,6 +1986,9 @@
 
         document.getElementById('searchHeaderCount').textContent = `${results.length} parça`;
         listEl.innerHTML = '';
+        results.forEach(t => listEl.appendChild(createRow(t, results)));
+      }, 250);
+    });
         results.forEach(t => listEl.appendChild(createRow(t, results)));
       }, 300);
     });
@@ -2102,14 +2158,18 @@
       }
     }
 
-    // Init
+    // Init & Persistent Offline Storage
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().catch(() => {});
+    }
+
     setupDatabase().then(() => {
       renderHomeFeed();
       renderDownloadsView();
       renderLibraryView();
     });
 
-    // Service Worker v5
+    // Service Worker v6
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js').catch(err => console.warn(err));
