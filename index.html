@@ -1033,11 +1033,13 @@
     <div class="tab-content" id="tabLibrary">
       <div class="title-row">
         <span class="title-text">Kitaplığım</span>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn-account" onclick="openYouTubeAccountModal()">+ YouTube İçe Aktar</button>
-          <button class="btn-account" onclick="openNewPlaylistModal()">+ Yeni Liste</button>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
+          <button class="btn-account" onclick="document.getElementById('fileAudioInput').click()">📁 Dosyalar'dan Ekle</button>
+          <button class="btn-account" onclick="openYouTubeAccountModal()">+ YouTube</button>
+          <button class="btn-account" onclick="openNewPlaylistModal()">+ Liste</button>
         </div>
       </div>
+      <input type="file" id="fileAudioInput" accept="audio/*" multiple style="display: none;" onchange="importLocalAudioFiles(event)">
 
       <div class="playlist-cards-grid" id="libraryCardsGrid">
         <div class="lib-card" onclick="openPlaylistView('Favoriler')">
@@ -1160,9 +1162,16 @@
         <div class="player-main-title" id="playerTitle">Parça Adı</div>
         <div class="player-main-artist" id="playerArtist">Sanatçı</div>
       </div>
-      <button class="btn-track-action" id="btnDownloadCurrent" onclick="downloadActiveTrack()" title="İndir">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-      </button>
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <button class="btn-track-action" id="btnDownloadCurrent" onclick="downloadActiveTrack()" title="Cihaza İndir (Uçak Modu)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        </button>
+        <button class="btn-track-action" onclick="exportActiveTrackToFiles()" title="iPhone Dosyalarım'a Aktar">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- Scrubber -->
@@ -1927,6 +1936,69 @@
     function downloadActiveTrack() {
       const current = activePlaylist[activeTrackIndex];
       if (current) triggerDownload(current.id);
+    }
+
+    // iPhone "Dosyalar" (Files) uygulamasına dışa aktar (.mp3/.wav olarak indir)
+    async function exportActiveTrackToFiles() {
+      const current = activePlaylist[activeTrackIndex];
+      if (!current) return;
+      notify(`"${current.title}" iPhone Dosyalar'a hazırlanıyor...`);
+
+      const downloads = await dbGetAllDownloads();
+      const dl = downloads.find(d => d.id === current.id);
+      let blob = dl ? dl.blob : null;
+
+      if (!blob) {
+        try {
+          const res = await fetch(current.src);
+          blob = await res.blob();
+        } catch(e) {
+          notify("Dosya alınamadı.");
+          return;
+        }
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (current.artist + " - " + current.title).replace(/[/\\?%*:|"<>]/g, '_');
+      a.download = `${safeName}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      notify("iPhone Dosyalar (İndirilenler) klasörüne aktarıldı! 📁");
+    }
+
+    // iPhone "Dosyalar" uygulamasından şarkı yükle
+    async function importLocalAudioFiles(e) {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+      notify(`${files.length} parça Dosyalar'dan içeri aktarılıyor...`);
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+        const parts = nameWithoutExt.split(" - ");
+        const artist = parts.length > 1 ? parts[0].trim() : "Dosyalarım";
+        const title = parts.length > 1 ? parts.slice(1).join(" - ").trim() : nameWithoutExt;
+
+        const track = {
+          id: "local-" + Date.now() + "-" + i,
+          title: title,
+          artist: artist,
+          duration: "Yerel",
+          cover: "icons/cover1.png",
+          src: "",
+          glow: "rgba(16, 185, 129, 0.4)"
+        };
+
+        await dbSaveOfflineTrack(track, file);
+      }
+
+      notify(`${files.length} parça Kitaplığına ve İndirilenler'e eklendi! 🎉`);
+      renderDownloadsView();
+      renderLibraryView();
     }
 
     async function toggleCurrentFavorite() {
