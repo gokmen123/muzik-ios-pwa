@@ -993,7 +993,7 @@
       <div class="header-brand">
         <span class="app-name">Müzik</span>
         <div class="badge-wrap">
-          <span class="ver-badge">v0.7.1 iOS</span>
+          <span class="ver-badge">v0.7.2 iOS</span>
           <span class="device-badge">iPhone 13 Edition</span>
         </div>
       </div>
@@ -1011,7 +1011,7 @@
     <div class="tab-content active" id="tabHome">
       <div class="title-row">
         <span class="title-text">Günün Önerileri</span>
-        <span class="title-sub">0.7.1 Feed</span>
+        <span class="title-sub">0.7.2 Live</span>
       </div>
       <div class="track-list" id="homeFeedList"></div>
 
@@ -1513,34 +1513,54 @@
     // --- CURATED FEED (0.7.1 EŞİTLEMESİ & AMBİYANS IŞIĞI) ---
     const CURATED_FEED = [
       {
-        id: "ankara-01",
-        title: "Ankara Havası (Kostak & Misket)",
-        artist: "Sincanlı & Özel Orkestra",
-        duration: "0:28",
-        durationSec: 28,
-        cover: "icons/cover1.png",
-        src: "audio/track1.wav",
-        glow: "rgba(239, 68, 68, 0.4)" // Amber Red
+        id: "310yTVKpd_A",
+        title: "Erik Dalı & Huriyem (Ankara Oyun Havası)",
+        artist: "Ömer Faruk Bostan",
+        duration: "7:09",
+        durationSec: 429,
+        cover: "icons/cover1.jpg",
+        src: "https://yt.chocolatemoo53.com/latest_version?id=310yTVKpd_A&itag=140&local=true",
+        glow: "rgba(239, 68, 68, 0.45)"
       },
       {
-        id: "turkce-pop-01",
-        title: "Yaz Rüzgarı (Kulüp Beat)",
-        artist: "Defne & Kaan · 2026 Trend",
-        duration: "0:25",
-        durationSec: 25,
-        cover: "icons/cover2.png",
-        src: "audio/track2.wav",
-        glow: "rgba(139, 92, 246, 0.4)" // Violet Purple
+        id: "VREnTCTeS4k",
+        title: "Aşkın Olayım",
+        artist: "Simge · Türkçe Pop Trend",
+        duration: "3:56",
+        durationSec: 236,
+        cover: "icons/cover2.jpg",
+        src: "https://yt.chocolatemoo53.com/latest_version?id=VREnTCTeS4k&itag=140&local=true",
+        glow: "rgba(139, 92, 246, 0.45)"
       },
       {
-        id: "akustik-01",
-        title: "Uzak Şehir Arpejleri (Ney & Gitar)",
-        artist: "Atlas · Akustik Vals",
-        duration: "0:30",
-        durationSec: 30,
-        cover: "icons/cover3.png",
-        src: "audio/track3.wav",
-        glow: "rgba(16, 185, 129, 0.4)" // Emerald Neon
+        id: "ez6VNqyT8VE",
+        title: "De Mardin (Uzak Şehir Jenerik)",
+        artist: "Sezen Aksu · Akustik Dizi",
+        duration: "2:03",
+        durationSec: 123,
+        cover: "icons/cover3.jpg",
+        src: "https://yt.chocolatemoo53.com/latest_version?id=ez6VNqyT8VE&itag=140&local=true",
+        glow: "rgba(16, 185, 129, 0.45)"
+      },
+      {
+        id: "_GOZDXq7I-I",
+        title: "Yolla",
+        artist: "Tarkan · Pop Klasikleri",
+        duration: "4:46",
+        durationSec: 286,
+        cover: "icons/cover4.jpg",
+        src: "https://yt.chocolatemoo53.com/latest_version?id=_GOZDXq7I-I&itag=140&local=true",
+        glow: "rgba(59, 130, 246, 0.45)"
+      },
+      {
+        id: "DUT5rEU6pqM",
+        title: "Hips Don't Lie (ft. Wyclef Jean)",
+        artist: "Shakira · Global Trend",
+        duration: "3:39",
+        durationSec: 219,
+        cover: "icons/cover5.jpg",
+        src: "https://yt.chocolatemoo53.com/latest_version?id=DUT5rEU6pqM&itag=140&local=true",
+        glow: "rgba(236, 72, 153, 0.45)"
       }
     ];
 
@@ -1693,8 +1713,10 @@
       if (track.blob) {
         currentObjectBlobUrl = URL.createObjectURL(track.blob);
         audio.src = currentObjectBlobUrl;
-      } else {
+      } else if (track.src) {
         audio.src = track.src;
+      } else if (track.id) {
+        audio.src = `https://yt.chocolatemoo53.com/latest_version?id=${track.id}&itag=140&local=true`;
       }
 
       audio.load();
@@ -2045,14 +2067,19 @@
       const track = activePlaylist.find(t => t.id === id) || CURATED_FEED.find(t => t.id === id);
       if (!track) return;
 
-      notify(`"${track.title}" indiriliyor... ⏳`);
+      notify(`"${track.title}" cihaza indiriliyor... ⏳`);
       try {
-        const res = await fetch(track.src);
+        const streamUrl = track.src || `https://yt.chocolatemoo53.com/latest_version?id=${track.id}&itag=140&local=true`;
+        const res = await fetch(streamUrl);
+        if (!res.ok) throw new Error("HTTP " + res.status);
         const blob = await res.blob();
         await dbSaveOfflineTrack(track, blob);
-        notify(`"${track.title}" cihaza kaydedildi! 📥`);
+        downloadedTrackIds.add(track.id);
+        notify(`"${track.title}" çevrimdışı için kaydedildi! 📥`);
+        renderHomeFeed();
         renderDownloadsView();
       } catch(e) {
+        console.error("Download error:", e);
         notify("İndirme tamamlanamadı (ağ hatası).");
       }
     }
@@ -2142,48 +2169,75 @@
 
       document.getElementById('searchHeaderTitle').textContent = `"${val}"`;
       const listEl = document.getElementById('searchResultsList');
-      listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px;">Aranıyor...</div>`;
+      listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px;">YouTube Müzik'te aranıyor... 🔍</div>`;
 
-      setTimeout(async () => {
-        const q = val.toLowerCase();
-        const downloads = await dbGetAllDownloads();
-        const playlists = await dbGetAllPlaylists();
+      const q = val.toLowerCase();
+      const downloads = await dbGetAllDownloads();
+      const playlists = await dbGetAllPlaylists();
 
-        // Tüm kaynakları bir havuzda topla (öncelik indirilenler ve kitaplık)
-        const allPool = [];
-        downloads.forEach(d => allPool.push(d));
-        CURATED_FEED.forEach(c => allPool.push(c));
-        playlists.forEach(pl => {
-          (pl.tracks || []).forEach(t => allPool.push(t));
+      // Yerel eşleşmeler (indirilenler ve listeler)
+      const localPool = [];
+      downloads.forEach(d => localPool.push(d));
+      playlists.forEach(pl => (pl.tracks || []).forEach(t => localPool.push(t)));
+
+      const localMatches = localPool.filter(t => 
+        (t.title && t.title.toLowerCase().includes(q)) || 
+        (t.artist && t.artist.toLowerCase().includes(q))
+      );
+
+      // YouTube API Arama (Invidious CORS API)
+      let ytMatches = [];
+      try {
+        const res = await fetch(`https://yt.chocolatemoo53.com/api/v1/search?q=${encodeURIComponent(val)}&type=video`, {
+          signal: AbortSignal.timeout(7000)
         });
-
-        // ID veya başlığa göre tekilleştir
-        const uniqueMap = new Map();
-        allPool.forEach(item => {
-          if (!uniqueMap.has(item.id)) uniqueMap.set(item.id, item);
-        });
-
-        const matches = Array.from(uniqueMap.values()).filter(t => 
-          (t.title && t.title.toLowerCase().includes(q)) || 
-          (t.artist && t.artist.toLowerCase().includes(q))
-        );
-
-        const results = matches.length > 0 ? matches : [
-          {
-            id: "yt-" + Date.now(),
-            title: val,
-            artist: "YouTube Müzik Arama Sonucu",
-            duration: "0:28",
-            cover: "icons/cover1.png",
-            src: "audio/track1.wav",
-            glow: "rgba(239, 68, 68, 0.4)"
+        if (res.ok) {
+          const items = await res.json();
+          if (Array.isArray(items)) {
+            ytMatches = items.slice(0, 20).map(item => {
+              const sec = item.lengthSeconds || 180;
+              return {
+                id: item.videoId,
+                title: item.title,
+                artist: item.author || "YouTube Music",
+                duration: timeFormat(sec),
+                durationSec: sec,
+                cover: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
+                src: `https://yt.chocolatemoo53.com/latest_version?id=${item.videoId}&itag=140&local=true`,
+                glow: "rgba(239, 68, 68, 0.45)"
+              };
+            });
           }
-        ];
+        }
+      } catch (e) {
+        console.warn("Canlı YouTube arama hatası:", e);
+      }
 
-        document.getElementById('searchHeaderCount').textContent = `${results.length} parça`;
-        listEl.innerHTML = '';
-        results.forEach(t => listEl.appendChild(createRow(t, results)));
-      }, 250);
+      // Sonuçları birleştir ve tekilleştir
+      const combined = [...localMatches];
+      const seen = new Set(combined.map(t => t.id));
+      ytMatches.forEach(t => {
+        if (!seen.has(t.id)) {
+          combined.push(t);
+          seen.add(t.id);
+        }
+      });
+
+      if (combined.length === 0) {
+        // Son çare: CURATED_FEED içinde eşleşen var mı?
+        const feedMatches = CURATED_FEED.filter(t => 
+          t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)
+        );
+        feedMatches.forEach(t => { if (!seen.has(t.id)) combined.push(t); });
+      }
+
+      document.getElementById('searchHeaderCount').textContent = `${combined.length} parça`;
+      listEl.innerHTML = '';
+      if (combined.length === 0) {
+        listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px;">Sonuç bulunamadı. Bağlantınızı kontrol edin.</div>`;
+      } else {
+        combined.forEach(t => listEl.appendChild(createRow(t, combined)));
+      }
     });
 
     document.getElementById('searchInput').addEventListener('keydown', (e) => {

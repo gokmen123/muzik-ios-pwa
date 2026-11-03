@@ -1,15 +1,17 @@
-const CACHE_NAME = 'muzik-pwa-v11';
+const CACHE_NAME = 'muzik-pwa-v13';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './icons/apple-touch-icon.png',
+  './icons/cover1.jpg',
+  './icons/cover2.jpg',
+  './icons/cover3.jpg',
+  './icons/cover4.jpg',
+  './icons/cover5.jpg',
   './icons/cover1.png',
   './icons/cover2.png',
-  './icons/cover3.png',
-  './audio/track1.wav',
-  './audio/track2.wav',
-  './audio/track3.wav'
+  './icons/cover3.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -35,15 +37,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Cache-first for local assets, network-first for external URLs
+  const url = new URL(event.request.url);
+
+  // Bypass service worker cache for external audio streams, APIs or range requests
+  if (url.origin !== self.location.origin || event.request.headers.get('range')) {
+    return;
+  }
+
+  // Cache-first for local static assets
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }
-      return fetch(event.request).catch(() => {
-        // Fallback for offline if needed
-      });
+      return fetch(event.request);
     })
   );
 });
