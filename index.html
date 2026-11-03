@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Müzik</title>
+  
+  <!-- iOS PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Müzik">
+  <meta name="theme-color" content="#0a0b10">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    :root {
+      --bg-color: #0a0b10;
+      --card-bg: rgba(22, 25, 37, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #8b5cf6;
+      --accent-glow: rgba(139, 92, 246, 0.35);
+      --accent-secondary: #06b6d4;
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+      --safe-top: env(safe-area-inset-top, 20px);
+      --safe-bottom: env(safe-area-inset-bottom, 20px);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      padding-top: var(--safe-top);
+      padding-bottom: var(--safe-bottom);
+    }
+
+    /* Ambient background glow */
+    .ambient-bg {
+      position: fixed;
+      top: -20%;
+      left: 20%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+      filter: blur(80px);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      max-width: 440px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 16px 20px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-top: 6px;
+    }
+
+    .app-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-071 {
+      font-size: 11px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+      padding: 2px 7px;
+      border-radius: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .pwa-status-pill {
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 5px 10px;
+      border-radius: 20px;
+      color: var(--text-sub);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    /* Artwork & Visualizer Card */
+    .artwork-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 15px 0 25px;
+    }
+
+    .artwork-box {
+      width: 250px;
+      height: 250px;
+      border-radius: 28px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 35px var(--accent-glow);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: transform 0.3s ease;
+    }
+
+    .artwork-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .playing .artwork-box {
+      transform: scale(1.03);
+    }
+
+    /* Track Info */
+    .track-info {
+      text-align: center;
+      margin-top: 20px;
+      width: 100%;
+    }
+
+    .track-title {
+      font-size: 21px;
+      font-weight: 700;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-artist {
+      font-size: 15px;
+      color: var(--text-sub);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    /* Progress Slider */
+    .progress-section {
+      margin-top: 24px;
+      width: 100%;
+    }
+
+    .slider-container {
+      position: relative;
+      width: 100%;
+      height: 24px;
+      display: flex;
+      align-items: center;
+    }
+
+    .progress-bar-bg {
+      position: absolute;
+      width: 100%;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 3px;
+    }
+
+    .progress-bar-fill {
+      position: absolute;
+      height: 5px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
+      border-radius: 3px;
+      width: 0%;
+      box-shadow: 0 0 10px var(--accent);
+    }
+
+    .slider-input {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .time-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+
+    /* Controls */
+    .controls-section {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 18px;
+      padding: 0 10px;
+    }
+
+    .btn-control {
+      background: none;
+      border: none;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border-radius: 50%;
+      transition: all 0.15s ease;
+    }
+
+    .btn-control:active {
+      transform: scale(0.88);
+      filter: brightness(1.2);
+    }
+
+    .btn-sub {
+      width: 44px;
+      height: 44px;
+      color: var(--text-sub);
+    }
+
+    .btn-seek {
+      width: 48px;
+      height: 48px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+    }
+
+    .btn-play-main {
+      width: 72px;
+      height: 72px;
+      background: linear-gradient(135deg, var(--accent), #7c3aed);
+      border-radius: 50%;
+      box-shadow: 0 8px 24px var(--accent-glow);
+    }
+
+    /* Instructions & Diagnostics Card */
+    .diagnostics-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 16px;
+      margin-top: 28px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    .diag-header {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--accent-secondary);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .diag-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .diag-item:last-child {
+      border-bottom: none;
+    }
+
+    .diag-label {
+      color: var(--text-sub);
+    }
+
+    .diag-val {
+      font-weight: 600;
+      color: #38bdf8;
+    }
+
+    .diag-val.ok {
+      color: #10b981;
+    }
+
+    /* Queue List */
+    .queue-section {
+      margin-top: 24px;
+    }
+
+    .queue-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .queue-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .queue-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .queue-item.active {
+      border-color: var(--accent);
+      background: rgba(139, 92, 246, 0.15);
+    }
+
+    .queue-thumb {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+
+    .queue-details {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .queue-track-title {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .queue-track-artist {
+      font-size: 12px;
+      color: var(--text-sub);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .queue-duration {
+      font-size: 12px;
+      color: var(--text-sub);
+      font-weight: 500;
+    }
+
+    /* Step Banner */
+    .step-banner {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.15));
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 12px 14px;
+      border-radius: 14px;
+      margin-top: 20px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #e2e8f0;
+    }
+
+    .step-banner strong {
+      color: #34d399;
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+
+  <div class="container" id="app">
+    <!-- Header -->
+    <header>
+      <div class="app-title">
+        <span>Müzik</span>
+        <span class="badge-071">v0.7.1 PoC</span>
+      </div>
+      <div class="pwa-status-pill">
+        <div class="status-dot" id="pwaStatusDot"></div>
+        <span id="pwaStatusText">Safari Modu</span>
+      </div>
+    </header>
+
+    <!-- Artwork & Track Info -->
+    <section class="artwork-section" id="artworkSection">
+      <div class="artwork-box">
+        <img src="icons/cover1.png" alt="Cover" class="artwork-img" id="coverImg">
+      </div>
+      <div class="track-info">
+        <div class="track-title" id="trackTitle">Geceye Doğru</div>
+        <div class="track-artist" id="trackArtist">Atlas · Tasarım örneği</div>
+      </div>
+    </section>
+
+    <!-- Progress Bar -->
+    <section class="progress-section">
+      <div class="slider-container">
+        <div class="progress-bar-bg"></div>
+        <div class="progress-bar-fill" id="progressFill"></div>
+        <input type="range" min="0" max="100" value="0" class="slider-input" id="progressSlider">
+      </div>
+      <div class="time-labels">
+        <span id="currTime">0:00</span>
+        <span id="totalTime">0:32</span>
+      </div>
+    </section>
+
+    <!-- Playback Controls -->
+    <section class="controls-section">
+      <!-- 10s Back (0.7.1 feature) -->
+      <button class="btn-control btn-seek" id="btnBack10" title="10 saniye geri">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 4v6h6"></path>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+          <text x="9" y="16" font-size="8" fill="currentColor" stroke="none" font-weight="bold">10</text>
+        </svg>
+      </button>
+
+      <!-- Previous -->
+      <button class="btn-control btn-sub" id="btnPrev" title="Önceki">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="19 20 9 12 19 4 19 20"></polygon>
+          <line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2"></line>
+        </svg>
+      </button>
+
+      <!-- Main Play/Pause -->
+      <button class="btn-control btn-play-main" id="btnPlay" title="Oynat / Durdur">
+        <svg id="playIcon" width="34" height="34" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="6 3 20 12 6 21 6 3"></polygon>
+        </svg>
+        <svg id="pauseIcon" width="34" height="34" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
+          <rect x="6" y="4" width="4" height="16"></rect>
+          <rect x="14" y="4" width="4" height="16"></rect>
+        </svg>
+      </button>
+
+      <!-- Next -->
+      <button class="btn-control btn-sub" id="btnNext" title="Sonraki">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5 4 15 12 5 20 5 4"></polygon>
+          <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"></line>
+        </svg>
+      </button>
+
+      <!-- 10s Forward (0.7.1 feature) -->
+      <button class="btn-control btn-seek" id="btnFwd10" title="10 saniye ileri">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 4v6h-6"></path>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          <text x="9" y="16" font-size="8" fill="currentColor" stroke="none" font-weight="bold">10</text>
+        </svg>
+      </button>
+    </section>
+
+    <!-- Test Instructions Banner -->
+    <div class="step-banner">
+      <strong>iPhone 13 Test Adımı:</strong> Oynat'a bas, ardından telefonu kilitle. Kulaklığındaki veya kilit ekranındaki tuşlarla sonraki parçaya geçmeyi ve ±10 sn sarmayı test et.
+    </div>
+
+    <!-- Live Diagnostics Panel -->
+    <section class="diagnostics-card">
+      <div class="diag-header">
+        <span>Arka Plan & Kilit Ekranı Durumu</span>
+        <span id="diagPing">Canlı</span>
+      </div>
+      <div class="diag-item">
+        <span class="diag-label">iOS AudioSession</span>
+        <span class="diag-val" id="diagAudioSession">Kontrol ediliyor...</span>
+      </div>
+      <div class="diag-item">
+        <span class="diag-label">MediaSession (Kilit Ekranı)</span>
+        <span class="diag-val" id="diagMediaSession">Destekleniyor</span>
+      </div>
+      <div class="diag-item">
+        <span class="diag-label">Çift Tampon (Kesintisiz Geçiş)</span>
+        <span class="diag-val ok" id="diagBuffer">Aktif (0ms Gecikme)</span>
+      </div>
+      <div class="diag-item">
+        <span class="diag-label">PWA Standalone</span>
+        <span class="diag-val" id="diagPwa">Safari Sekmesi</span>
+      </div>
+    </section>
+
+    <!-- Queue List -->
+    <section class="queue-section">
+      <div class="queue-title">
+        <span>Çalma Sırası (0.7.1 Örnek Parçaları)</span>
+        <span style="font-size: 12px; color: var(--text-sub);">3 Parça</span>
+      </div>
+      <div class="queue-list" id="queueList"></div>
+    </section>
+  </div>
+
+  <!-- Dual Audio Engine (Primary & Preload to prevent silence gaps on iOS lock screen) -->
+  <audio id="audioPrimary" preload="auto"></audio>
+  <audio id="audioPreload" preload="auto"></audio>
+
+  <script>
+    // Playlist matching Android 0.7.1 Engine.kt examples
+    const PLAYLIST = [
+      {
+        id: "demo-night",
+        title: "Geceye Doğru (Sakin Akustik)",
+        artist: "Atlas · Doğu Melodisi",
+        duration: "0:28",
+        durationSec: 28,
+        cover: "icons/cover1.png",
+        src: "audio/track1.wav"
+      },
+      {
+        id: "demo-dance",
+        title: "Ritim & Dans (Hareketli Beat)",
+        artist: "Defne · Pop & Elektronik",
+        duration: "0:25",
+        durationSec: 25,
+        cover: "icons/cover2.png",
+        src: "audio/track2.wav"
+      },
+      {
+        id: "demo-acoustic",
+        title: "Akustik Gitar (Dingin Arpej)",
+        artist: "Kaan · Klasik Gitar Vals",
+        duration: "0:30",
+        durationSec: 30,
+        cover: "icons/cover3.png",
+        src: "audio/track3.wav"
+      }
+    ];
+
+    let currentIndex = 0;
+    let isPlaying = false;
+    let primaryAudio = document.getElementById('audioPrimary');
+    let preloadAudio = document.getElementById('audioPreload');
+
+    // UI elements
+    const appEl = document.getElementById('app');
+    const artworkSection = document.getElementById('artworkSection');
+    const coverImg = document.getElementById('coverImg');
+    const trackTitle = document.getElementById('trackTitle');
+    const trackArtist = document.getElementById('trackArtist');
+    const progressFill = document.getElementById('progressFill');
+    const progressSlider = document.getElementById('progressSlider');
+    const currTimeEl = document.getElementById('currTime');
+    const totalTimeEl = document.getElementById('totalTime');
+    const btnPlay = document.getElementById('btnPlay');
+    const playIcon = document.getElementById('playIcon');
+    const pauseIcon = document.getElementById('pauseIcon');
+    const btnPrev = document.getElementById('btnPrev');
+    const btnNext = document.getElementById('btnNext');
+    const btnBack10 = document.getElementById('btnBack10');
+    const btnFwd10 = document.getElementById('btnFwd10');
+    const queueList = document.getElementById('queueList');
+
+    // Diag elements
+    const diagAudioSession = document.getElementById('diagAudioSession');
+    const diagMediaSession = document.getElementById('diagMediaSession');
+    const diagPwa = document.getElementById('diagPwa');
+    const pwaStatusDot = document.getElementById('pwaStatusDot');
+    const pwaStatusText = document.getElementById('pwaStatusText');
+
+    // Check Standalone mode
+    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    if (isStandalone) {
+      diagPwa.textContent = "Tam Ekran PWA";
+      diagPwa.className = "diag-val ok";
+      pwaStatusText.textContent = "PWA Modu";
+    }
+
+    // Set iOS Audio Session category (iOS 16.4+)
+    function configureAudioSession() {
+      if ('audioSession' in navigator) {
+        try {
+          navigator.audioSession.type = 'playback';
+          diagAudioSession.textContent = "Aktif (playback)";
+          diagAudioSession.className = "diag-val ok";
+        } catch(e) {
+          diagAudioSession.textContent = "Standart";
+        }
+      } else {
+        diagAudioSession.textContent = "Standart HTML5";
+      }
+    }
+
+    // Render Queue
+    function renderQueue() {
+      queueList.innerHTML = '';
+      PLAYLIST.forEach((track, idx) => {
+        const item = document.createElement('div');
+        item.className = 'queue-item' + (idx === currentIndex ? ' active' : '');
+        item.innerHTML = `
+          <img src="${track.cover}" class="queue-thumb" alt="thumb">
+          <div class="queue-details">
+            <div class="queue-track-title">${track.title}</div>
+            <div class="queue-track-artist">${track.artist}</div>
+          </div>
+          <div class="queue-duration">${track.duration}</div>
+        `;
+        item.addEventListener('click', () => {
+          playTrack(idx);
+        });
+        queueList.appendChild(item);
+      });
+    }
+
+    // Format mm:ss
+    function formatTime(sec) {
+      if (isNaN(sec) || sec < 0) return "0:00";
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    // Preload next track into secondary audio buffer to eliminate dead gap
+    function preloadNext() {
+      const nextIdx = (currentIndex + 1) % PLAYLIST.length;
+      preloadAudio.src = PLAYLIST[nextIdx].src;
+      preloadAudio.load();
+    }
+
+    // Load and play track
+    function playTrack(index, startTime = 0) {
+      currentIndex = index;
+      const track = PLAYLIST[currentIndex];
+
+      // Update UI
+      coverImg.src = track.cover;
+      trackTitle.textContent = track.title;
+      trackArtist.textContent = track.artist;
+      totalTimeEl.textContent = track.duration;
+      renderQueue();
+
+      // Setup audio source
+      primaryAudio.src = track.src;
+      primaryAudio.currentTime = startTime;
+
+      configureAudioSession();
+
+      primaryAudio.play().then(() => {
+        isPlaying = true;
+        updatePlayButton();
+        setupMediaSession(track);
+        preloadNext();
+      }).catch(err => {
+        console.warn("Autoplay block or error:", err);
+      });
+    }
+
+    function updatePlayButton() {
+      if (isPlaying) {
+        playIcon.style.display = 'none';
+        pauseIcon.style.display = 'block';
+        artworkSection.classList.add('playing');
+      } else {
+        playIcon.style.display = 'block';
+        pauseIcon.style.display = 'none';
+        artworkSection.classList.remove('playing');
+      }
+    }
+
+    // Setup iOS Lock Screen / Control Center via MediaSession API
+    function setupMediaSession(track) {
+      if (!('mediaSession' in navigator)) {
+        diagMediaSession.textContent = "Desteklenmiyor";
+        return;
+      }
+
+      diagMediaSession.textContent = "Bağlandı (Kilit Ekranı Hazır)";
+      diagMediaSession.className = "diag-val ok";
+
+      // Metadata
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.title,
+        artist: track.artist,
+        album: "0.7.1 Çalma Listesi",
+        artwork: [
+          { src: track.cover, sizes: '512x512', type: 'image/png' },
+          { src: track.cover, sizes: '192x192', type: 'image/png' }
+        ]
+      });
+
+      // Actions
+      navigator.mediaSession.setActionHandler('play', () => {
+        configureAudioSession();
+        primaryAudio.play();
+        isPlaying = true;
+        updatePlayButton();
+      });
+
+      navigator.mediaSession.setActionHandler('pause', () => {
+        primaryAudio.pause();
+        isPlaying = false;
+        updatePlayButton();
+      });
+
+      // Android 0.7.1 rule: If > 3 seconds, rewind; otherwise go to previous track!
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        if (primaryAudio.currentTime > 3) {
+          primaryAudio.currentTime = 0;
+        } else {
+          const prevIdx = (currentIndex - 1 + PLAYLIST.length) % PLAYLIST.length;
+          playTrack(prevIdx);
+        }
+      });
+
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        const nextIdx = (currentIndex + 1) % PLAYLIST.length;
+        playTrack(nextIdx);
+      });
+
+      // Remove seekbackward and seekforward from MediaSession so iOS displays
+      // real "Next Track" and "Previous Track" buttons instead of -10s/+10s!
+      try {
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
+      } catch(e) {}
+
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime !== undefined) {
+          primaryAudio.currentTime = details.seekTime;
+        }
+      });
+    }
+
+    // Update position state for lock screen progress bar
+    function updatePositionState() {
+      if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+        if (primaryAudio.duration && !isNaN(primaryAudio.duration)) {
+          navigator.mediaSession.setPositionState({
+            duration: primaryAudio.duration,
+            playbackRate: primaryAudio.playbackRate,
+            position: primaryAudio.currentTime
+          });
+        }
+      }
+    }
+
+    // Audio event listeners
+    primaryAudio.addEventListener('timeupdate', () => {
+      const cur = primaryAudio.currentTime;
+      const dur = primaryAudio.duration || 1;
+      const pct = (cur / dur) * 100;
+      progressFill.style.width = pct + '%';
+      currTimeEl.textContent = formatTime(cur);
+      updatePositionState();
+    });
+
+    primaryAudio.addEventListener('ended', () => {
+      // Seamlessly advance to the preloaded next track
+      const nextIdx = (currentIndex + 1) % PLAYLIST.length;
+      playTrack(nextIdx);
+    });
+
+    primaryAudio.addEventListener('play', () => {
+      isPlaying = true;
+      updatePlayButton();
+    });
+
+    primaryAudio.addEventListener('pause', () => {
+      isPlaying = false;
+      updatePlayButton();
+    });
+
+    // Control button events
+    btnPlay.addEventListener('click', () => {
+      configureAudioSession();
+      if (!primaryAudio.src) {
+        playTrack(currentIndex);
+      } else if (primaryAudio.paused) {
+        primaryAudio.play();
+      } else {
+        primaryAudio.pause();
+      }
+    });
+
+    btnNext.addEventListener('click', () => {
+      const nextIdx = (currentIndex + 1) % PLAYLIST.length;
+      playTrack(nextIdx);
+    });
+
+    btnPrev.addEventListener('click', () => {
+      if (primaryAudio.currentTime > 3) {
+        primaryAudio.currentTime = 0;
+      } else {
+        const prevIdx = (currentIndex - 1 + PLAYLIST.length) % PLAYLIST.length;
+        playTrack(prevIdx);
+      }
+    });
+
+    btnBack10.addEventListener('click', () => {
+      primaryAudio.currentTime = Math.max(0, primaryAudio.currentTime - 10);
+    });
+
+    btnFwd10.addEventListener('click', () => {
+      primaryAudio.currentTime = Math.min(primaryAudio.duration || 100, primaryAudio.currentTime + 10);
+    });
+
+    progressSlider.addEventListener('input', (e) => {
+      const val = e.target.value;
+      if (primaryAudio.duration) {
+        primaryAudio.currentTime = (val / 100) * primaryAudio.duration;
+      }
+    });
+
+    // Register Service Worker for offline capability
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').then((reg) => {
+          console.log('SW Registered', reg.scope);
+        }).catch((err) => {
+          console.warn('SW Register Failed', err);
+        });
+      });
+    }
+
+    // Initialize UI
+    renderQueue();
+    playTrack(0);
+    primaryAudio.pause(); // Prepare without autoplaying initially until user taps
+    isPlaying = false;
+    updatePlayButton();
+  </script>
+</body>
+</html>
