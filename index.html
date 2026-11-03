@@ -41,9 +41,7 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-tap-highlight-color: transparent;
+      -webkit-tap-highlight-color: rgba(255, 255, 255, 0.15);
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
     }
 
@@ -602,21 +600,21 @@
       bottom: 0;
       background: var(--bg);
       z-index: 2000;
-      display: flex;
+      display: none;
       flex-direction: column;
       padding: calc(var(--safe-top) + 10px) 24px calc(var(--safe-bottom) + 24px);
-      transform: translateY(100%);
-      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.4s;
       overflow-y: auto;
       backdrop-filter: blur(35px);
-      visibility: hidden;
-      pointer-events: none;
     }
 
     .full-player-sheet.open {
-      transform: translateY(0);
-      visibility: visible;
-      pointer-events: auto;
+      display: flex !important;
+      animation: sheetPop 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes sheetPop {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
     }
 
     .sheet-handle-bar {
@@ -1368,8 +1366,8 @@
   </div>
 
   <!-- Audio Elements -->
-  <audio id="coreAudio" preload="auto"></audio>
-  <audio id="bufferAudio" preload="auto"></audio>
+  <audio id="coreAudio" preload="auto" playsinline webkit-playsinline></audio>
+  <audio id="bufferAudio" preload="auto" playsinline webkit-playsinline></audio>
 
   <script>
     // --- INDEXEDDB (OFFLINE DEPOLAMA & LİSTELER) ---
@@ -1644,18 +1642,40 @@
     }
 
     // --- PLAYBACK ENGINE ---
-    async function playTrackAt(index, queue = null) {
+    function playTrackAt(index, queue = null) {
       if (queue) activePlaylist = queue;
       if (index < 0 || index >= activePlaylist.length) return;
       activeTrackIndex = index;
       const track = activePlaylist[activeTrackIndex];
 
-      // Dinamik ambiyans ışığını şarkıya uyarla
-      if (track.glow) {
-        ambientGlow.style.background = `radial-gradient(circle, ${track.glow} 0%, transparent 68%)`;
+      // 1. iOS Safari jest token'ı canlıyken ANINDA audio.play() çağrılmalı (ASLA await beklenmez!)
+      if (currentObjectBlobUrl) {
+        URL.revokeObjectURL(currentObjectBlobUrl);
+        currentObjectBlobUrl = null;
       }
 
-      // UI güncelle
+      if (track.blob) {
+        currentObjectBlobUrl = URL.createObjectURL(track.blob);
+        audio.src = currentObjectBlobUrl;
+      } else {
+        audio.src = track.src;
+      }
+
+      audio.load();
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          setPlaybackStatus(true);
+          updateLockScreenNowPlaying(track);
+          renderPlayerUpNext();
+          preloadNext();
+        }).catch(err => {
+          console.warn("Playback error:", err);
+          notify("Çalma başlatıldı (ses seviyenizi kontrol edin)");
+        });
+      }
+
+      // 2. Anında UI güncellemesi
       miniPlayer.style.display = 'flex';
       miniTitle.textContent = track.title;
       miniArtist.textContent = track.artist;
@@ -1666,43 +1686,26 @@
       playerArtwork.src = track.cover;
       labelTotalTime.textContent = track.duration || "0:00";
 
-      // Çevrimdışı hafızayı kontrol et (İndirilenler)
-      const downloads = await dbGetAllDownloads();
-      const offlineItem = downloads.find(d => d.id === track.id);
-
-      if (currentObjectBlobUrl) {
-        URL.revokeObjectURL(currentObjectBlobUrl);
-        currentObjectBlobUrl = null;
+      if (track.glow) {
+        ambientGlow.style.background = `radial-gradient(circle, ${track.glow} 0%, transparent 68%)`;
       }
-
-      if (offlineItem && offlineItem.blob) {
-        currentObjectBlobUrl = URL.createObjectURL(offlineItem.blob);
-        audio.src = currentObjectBlobUrl;
-        btnDownloadCurrent.classList.add('downloaded');
-      } else {
-        audio.src = track.src;
-        btnDownloadCurrent.classList.remove('downloaded');
-      }
-
-      // Favori kontrolü
-      const isFav = await dbCheckFav(track.id);
-      favCurrentIcon.setAttribute('fill', isFav ? 'var(--accent-red)' : 'none');
-      favCurrentIcon.setAttribute('stroke', isFav ? 'var(--accent-red)' : 'currentColor');
-
-      if ('audioSession' in navigator) {
-        try { navigator.audioSession.type = 'playback'; } catch(e) {}
-      }
-
-      audio.play().then(() => {
-        setPlaybackStatus(true);
-        updateLockScreenNowPlaying(track);
-        renderPlayerUpNext();
-        preloadNext();
-      }).catch(err => {
-        console.warn("Autoplay block:", err);
-      });
 
       highlightPlayingCard();
+
+      // 3. Arka plan kontrolleri (çalma başladıktan sonra)
+      dbCheckFav(track.id).then(isFav => {
+        favCurrentIcon.setAttribute('fill', isFav ? 'var(--accent-red)' : 'none');
+        favCurrentIcon.setAttribute('stroke', isFav ? 'var(--accent-red)' : 'currentColor');
+      });
+
+      dbGetAllDownloads().then(downloads => {
+        const dl = downloads.find(d => d.id === track.id);
+        if (dl) {
+          btnDownloadCurrent.classList.add('downloaded');
+        } else {
+          btnDownloadCurrent.classList.remove('downloaded');
+        }
+      });
     }
 
     function preloadNext() {
@@ -1821,6 +1824,9 @@
       const isDl = downloadedTrackIds.has(track.id) || Boolean(track.blob);
       const item = document.createElement('div');
       item.className = 'track-item' + (activePlaylist[activeTrackIndex]?.id === track.id ? ' active' : '');
+      item.setAttribute('role', 'button');
+      item.setAttribute('tabindex', '0');
+      item.style.cursor = 'pointer';
       item.innerHTML = `
         <img src="${track.cover}" class="track-cover-img" alt="cover">
         <div class="track-text-box">
@@ -1831,7 +1837,7 @@
           </div>
         </div>
         <div class="track-actions-box">
-          <button class="btn-track-action ${isDl ? 'downloaded' : ''}" onclick="event.stopPropagation(); triggerDownload('${track.id}')" title="${isDl ? 'İndirildi (Cihazda Kayıtlı)' : 'İndir'}">
+          <button type="button" class="btn-track-action ${isDl ? 'downloaded' : ''}" onclick="event.stopPropagation(); triggerDownload('${track.id}')" title="${isDl ? 'İndirildi (Cihazda Kayıtlı)' : 'İndir'}">
             ${isDl ? `
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <polyline points="20 6 9 17 4 12"></polyline>
@@ -1846,10 +1852,19 @@
           </button>
         </div>
       `;
-      item.onclick = () => {
+
+      let lastTap = 0;
+      const selectTrack = (e) => {
+        if (e && e.target && e.target.closest('.btn-track-action')) return;
+        const now = Date.now();
+        if (now - lastTap < 300) return;
+        lastTap = now;
         const idx = list.findIndex(t => t.id === track.id);
         playTrackAt(idx !== -1 ? idx : 0, list);
       };
+
+      item.addEventListener('click', selectTrack);
+      item.addEventListener('touchend', selectTrack, { passive: true });
       return item;
     }
 
