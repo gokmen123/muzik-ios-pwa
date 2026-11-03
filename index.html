@@ -1875,8 +1875,9 @@
     }
 
     function seekRelative(sec) {
-      if (audio.duration) {
-        audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + sec));
+      if (audio.duration && isFinite(audio.duration)) {
+        const target = Math.max(0, Math.min(audio.duration - 1, audio.currentTime + sec));
+        _safSeek(target);
         syncPosition();
       }
     }
@@ -1896,10 +1897,58 @@
     audio.addEventListener('ended', () => nextTrack());
 
     scrubberInput.addEventListener('input', (e) => {
-      if (audio.duration) {
-        audio.currentTime = (e.target.value / 100) * audio.duration;
+      const pct = parseFloat(e.target.value) / 100;
+      if (audio.duration && isFinite(audio.duration)) {
+        const target = pct * audio.duration;
+        // Sadece küçük seek'lerde direkt set et; büyük atlayışlarda güvenli seek
+        _safSeek(target);
+      } else {
+        // Süre bilinmiyorsa: yüklendikten sonra seek yap
+        _pendingSeekPct = pct;
       }
     });
+
+    let _pendingSeekPct = null;
+    audio.addEventListener('loadedmetadata', () => {
+      if (_pendingSeekPct !== null && audio.duration && isFinite(audio.duration)) {
+        audio.currentTime = _pendingSeekPct * audio.duration;
+        _pendingSeekPct = null;
+      }
+    });
+
+    // Güvenli seek: hata olursa şarkıyı pozisyondan yeniden yükle
+    let _seekReloadTimer = null;
+    function _safSeek(targetSec) {
+      audio.currentTime = targetSec;
+      clearTimeout(_seekReloadTimer);
+      _seekReloadTimer = setTimeout(() => {
+        // 2 saniye sonra hâlâ duraksadıysa yeniden yükle aynı pozisyondan
+        if (audio.paused && !isTrackPlaying) return; // Kullanıcı durdurmuş, dokunma
+        if (audio.readyState < 3) {
+          const resumeAt = targetSec;
+          const track = activePlaylist[activeTrackIndex];
+          if (!track) return;
+          const seq = ++_playSeq;
+          (async () => {
+            const url = track.blob
+              ? URL.createObjectURL(track.blob)
+              : await getStreamUrl(track.id);
+            if (seq !== _playSeq) return;
+            audio.src = url;
+            audio.load();
+            const onMeta = () => {
+              audio.removeEventListener('loadedmetadata', onMeta);
+              audio.currentTime = resumeAt;
+              audio.play().catch(() => {});
+            };
+            audio.addEventListener('loadedmetadata', onMeta, { once: true });
+          })();
+        }
+      }, 2000);
+    }
+
+    // seekRelative de güvenli seek kullanır
+
 
     // --- FULL PLAYER OPEN/CLOSE ---
     function openFullPlayer() {
@@ -2007,10 +2056,57 @@
       CURATED_FEED.forEach(t => listEl.appendChild(createRow(t, CURATED_FEED)));
     }
 
-    function renderPlayerUpNext() {
+    async function renderPlayerUpNext() {
+      playerUpNextList.innerHTML = '<div style="color:var(--text-sub);font-size:12px;padding:8px 4px;">Yükleniyor...</div>';
+      const track = activePlaylist[activeTrackIndex];
+
+      // 1. Mevcut playlist'ten devam edenler
+      let items = activePlaylist.filter((_, i) => i !== activeTrackIndex);
+
+      // 2. YouTube related videos (Invidious API)
+      if (track && track.id && items.length < 5) {
+        try {
+          const inst = await getWorkingInstance();
+          const r = await fetch(`${inst}/api/v1/videos/${track.id}?fields=recommendedVideos`, {
+            signal: AbortSignal.timeout(5000)
+          });
+          if (r.ok) {
+            const data = await r.json();
+            const related = (data.recommendedVideos || []).slice(0, 10).map(v => ({
+              id: v.videoId,
+              title: v.title,
+              artist: v.author || "YouTube",
+              duration: timeFormat(v.lengthSeconds || 0),
+              durationSec: v.lengthSeconds || 0,
+              cover: `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
+              src: buildStreamUrl(v.videoId, inst),
+              glow: "rgba(239, 68, 68, 0.35)"
+            }));
+            // Daha önce listede olmayan önerileri ekle
+            const existingIds = new Set(items.map(t => t.id));
+            related.forEach(t => { if (!existingIds.has(t.id)) items.push(t); });
+          }
+        } catch(e) {
+          console.warn("Related videos fetch failed:", e);
+        }
+      }
+
+      // 3. Hiç yoksa CURATED_FEED'den doldur
+      if (items.length === 0) {
+        items = CURATED_FEED.filter(t => !track || t.id !== track.id);
+      }
+
       playerUpNextList.innerHTML = '';
-      const items = activePlaylist.filter((_, i) => i !== activeTrackIndex).slice(0, 8);
-      items.forEach(t => playerUpNextList.appendChild(createRow(t, activePlaylist)));
+      const upQueue = [...activePlaylist.slice(activeTrackIndex + 1), ...items.slice(0, 12)];
+      // Tekrar önle
+      const seen = new Set(); const finalList = [];
+      for (const t of upQueue) { if (!seen.has(t.id)) { seen.add(t.id); finalList.push(t); } }
+
+      if (finalList.length === 0) {
+        playerUpNextList.innerHTML = '<div style="color:var(--text-sub);font-size:12px;padding:8px 4px;">Başka parça bulunamadı.</div>';
+        return;
+      }
+      finalList.slice(0, 10).forEach(t => playerUpNextList.appendChild(createRow(t, [...activePlaylist, ...finalList])));
     }
 
     async function renderDownloadsView() {
@@ -2135,23 +2231,38 @@
 
     // --- DOWNLOAD ---
     async function triggerDownload(id) {
-      const track = activePlaylist.find(t => t.id === id) || CURATED_FEED.find(t => t.id === id);
+      const track = activePlaylist.find(t => t.id === id)
+                 || CURATED_FEED.find(t => t.id === id);
       if (!track) return;
 
-      notify(`"${track.title}" cihaza indiriliyor... ⏳`);
+      // Zaten indirilmişse tekrar indirme
+      if (downloadedTrackIds.has(id)) {
+        notify(`"${track.title}" zaten cihazda kayıtlı ✅`);
+        return;
+      }
+
+      notify(`"${track.title}" indiriliyor... ⏳ (birkaç dakika sürebilir)`);
       try {
-        const streamUrl = track.src || `https://yt.chocolatemoo53.com/latest_version?id=${track.id}&itag=140&local=true`;
+        // Taze stream URL al (chocolatemoo53 hardcode değil, fallback destekli)
+        const streamUrl = await getStreamUrl(track.id);
         const res = await fetch(streamUrl);
         if (!res.ok) throw new Error("HTTP " + res.status);
         const blob = await res.blob();
+
+        // Blob tipi kontrolü - audio olmalı
+        if (!blob.type.startsWith('audio') && blob.size < 10000) {
+          throw new Error(`Geçersiz ses dosyası (tip: ${blob.type}, boyut: ${blob.size})`);
+        }
+
         await dbSaveOfflineTrack(track, blob);
         downloadedTrackIds.add(track.id);
-        notify(`"${track.title}" çevrimdışı için kaydedildi! 📥`);
+        const mb = (blob.size / 1024 / 1024).toFixed(1);
+        notify(`"${track.title}" kaydedildi! (${mb} MB) 📥 — İnternetsiz dinleyebilirsiniz`);
         renderHomeFeed();
         renderDownloadsView();
       } catch(e) {
         console.error("Download error:", e);
-        notify("İndirme tamamlanamadı (ağ hatası).");
+        notify(`İndirme başarısız: ${e.message}. Tekrar deneyin.`);
       }
     }
 
@@ -2172,7 +2283,8 @@
 
       if (!blob) {
         try {
-          const res = await fetch(current.src);
+          const exportUrl = await getStreamUrl(current.id);
+          const res = await fetch(exportUrl);
           blob = await res.blob();
         } catch(e) {
           notify("Dosya alınamadı.");
