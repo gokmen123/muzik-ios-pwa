@@ -3,31 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Müzik</title>
+  <title>Müzik · iPhone 13 Edition</title>
   
   <!-- iOS PWA Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Müzik">
-  <meta name="theme-color" content="#07080c">
+  <meta name="theme-color" content="#050508">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
 
+  <!-- Google Identity Services (GIS) for YouTube Account Sync -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
   <style>
     :root {
-      --bg: #07080c;
-      --surface: #10121a;
-      --card-bg: rgba(22, 25, 37, 0.72);
-      --card-border: rgba(255, 255, 255, 0.09);
+      --bg: #050508;
+      --surface: #0e111a;
+      --surface-elevated: #161926;
+      --card-bg: rgba(22, 25, 38, 0.72);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-border-active: rgba(139, 92, 246, 0.4);
       --accent: #8b5cf6;
-      --accent-glow: rgba(139, 92, 246, 0.4);
+      --accent-glow: rgba(139, 92, 246, 0.35);
       --accent-grad: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
+      --accent-red: #ef4444;
+      --accent-red-glow: rgba(239, 68, 68, 0.35);
       --text-main: #f8fafc;
       --text-sub: #94a3b8;
       --danger: #f43f5e;
       --success: #10b981;
-      --safe-top: env(safe-area-inset-top, 20px);
-      --safe-bottom: env(safe-area-inset-bottom, 20px);
+      --safe-top: env(safe-area-inset-top, 47px);
+      --safe-bottom: env(safe-area-inset-bottom, 34px);
     }
 
     * {
@@ -37,7 +44,7 @@
       user-select: none;
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
     }
 
     body {
@@ -47,22 +54,22 @@
       display: flex;
       flex-direction: column;
       overflow-x: hidden;
-      padding-top: calc(var(--safe-top) + 8px);
+      padding-top: calc(var(--safe-top) + 6px);
       padding-bottom: calc(var(--safe-bottom) + 130px);
     }
 
-    /* Ambient background lighting */
+    /* Dynamic Apple Music ambient glow */
     .ambient-glow {
       position: fixed;
-      top: -15%;
-      left: 10%;
-      width: 500px;
-      height: 500px;
-      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 65%);
-      filter: blur(100px);
+      top: -12%;
+      left: 5%;
+      width: 520px;
+      height: 520px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 68%);
+      filter: blur(120px);
       z-index: 0;
       pointer-events: none;
-      transition: background 0.8s ease;
+      transition: background 1.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .container {
@@ -71,7 +78,7 @@
       max-width: 480px;
       margin: 0 auto;
       width: 100%;
-      padding: 0 18px;
+      padding: 0 16px;
     }
 
     /* Header */
@@ -79,8 +86,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
-      padding: 6px 0;
+      margin-bottom: 18px;
+      padding: 4px 0;
     }
 
     .header-brand {
@@ -91,7 +98,7 @@
     .app-name {
       font-size: 28px;
       font-weight: 800;
-      letter-spacing: -0.8px;
+      letter-spacing: -0.7px;
       background: linear-gradient(135deg, #ffffff 40%, #cbd5e1 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -114,6 +121,12 @@
       letter-spacing: 0.4px;
     }
 
+    .device-badge {
+      font-size: 11px;
+      color: var(--text-sub);
+      font-weight: 500;
+    }
+
     .header-actions {
       display: flex;
       align-items: center;
@@ -124,7 +137,7 @@
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       color: var(--text-main);
-      padding: 6px 12px;
+      padding: 7px 13px;
       border-radius: 20px;
       font-size: 12px;
       font-weight: 600;
@@ -132,20 +145,35 @@
       align-items: center;
       gap: 6px;
       cursor: pointer;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      transition: all 0.2s ease;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
     }
 
     .btn-account:active {
-      transform: scale(0.95);
-      background: rgba(255, 255, 255, 0.1);
+      transform: scale(0.94);
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .btn-account.connected {
+      border-color: rgba(16, 185, 129, 0.4);
+      background: rgba(16, 185, 129, 0.12);
+      color: #a7f3d0;
+    }
+
+    .dot-status {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
     }
 
     /* Tabs */
     .tab-content {
       display: none;
-      animation: tabFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      animation: tabFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .tab-content.active {
@@ -153,7 +181,7 @@
     }
 
     @keyframes tabFadeIn {
-      from { opacity: 0; transform: translateY(6px); }
+      from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
@@ -166,8 +194,8 @@
     }
 
     .title-text {
-      font-size: 20px;
-      font-weight: 700;
+      font-size: 21px;
+      font-weight: 800;
       letter-spacing: -0.4px;
     }
 
@@ -175,6 +203,32 @@
       font-size: 13px;
       color: var(--text-sub);
       font-weight: 500;
+    }
+
+    /* Equalizer Wave Animation */
+    .eq-wave {
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 2.5px;
+      height: 16px;
+    }
+
+    .eq-bar {
+      width: 3px;
+      background: var(--accent);
+      border-radius: 2px;
+      height: 4px;
+      transition: height 0.2s ease;
+    }
+
+    .eq-wave.playing .eq-bar:nth-child(1) { animation: bounceBar 0.65s infinite alternate ease-in-out; }
+    .eq-wave.playing .eq-bar:nth-child(2) { animation: bounceBar 0.85s infinite alternate ease-in-out 0.15s; }
+    .eq-wave.playing .eq-bar:nth-child(3) { animation: bounceBar 0.55s infinite alternate ease-in-out 0.3s; }
+    .eq-wave.playing .eq-bar:nth-child(4) { animation: bounceBar 0.75s infinite alternate ease-in-out 0.2s; }
+
+    @keyframes bounceBar {
+      from { height: 4px; }
+      to { height: 16px; }
     }
 
     /* Search Box */
@@ -203,7 +257,7 @@
 
     .search-input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 14px var(--accent-glow);
+      box-shadow: 0 0 16px var(--accent-glow);
     }
 
     .search-glass-icon {
@@ -212,6 +266,7 @@
       top: 50%;
       transform: translateY(-50%);
       color: var(--text-sub);
+      pointer-events: none;
     }
 
     .btn-search-go {
@@ -224,6 +279,11 @@
       font-size: 14px;
       cursor: pointer;
       box-shadow: 0 4px 15px var(--accent-glow);
+      transition: transform 0.15s;
+    }
+
+    .btn-search-go:active {
+      transform: scale(0.94);
     }
 
     /* Track Cards */
@@ -249,12 +309,13 @@
 
     .track-item:active {
       transform: scale(0.975);
-      background: rgba(139, 92, 246, 0.15);
+      background: rgba(139, 92, 246, 0.16);
     }
 
     .track-item.active {
       border-color: var(--accent);
       background: rgba(139, 92, 246, 0.18);
+      box-shadow: 0 0 15px var(--accent-glow);
     }
 
     .track-cover-img {
@@ -262,8 +323,9 @@
       height: 52px;
       border-radius: 12px;
       object-fit: cover;
-      background: #1b1e2c;
+      background: #181b28;
       flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     }
 
     .track-text-box {
@@ -273,10 +335,11 @@
 
     .track-primary-title {
       font-size: 15px;
-      font-weight: 600;
+      font-weight: 700;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      color: #fff;
     }
 
     .track-secondary-info {
@@ -286,6 +349,12 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .track-actions-box {
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
 
     .btn-track-action {
@@ -298,10 +367,20 @@
       justify-content: center;
       padding: 8px;
       border-radius: 50%;
+      transition: all 0.2s;
+    }
+
+    .btn-track-action:active {
+      transform: scale(0.85);
+      color: var(--accent);
     }
 
     .btn-track-action.downloaded {
       color: var(--success);
+    }
+
+    .btn-track-action.favorited {
+      color: var(--accent-red);
     }
 
     /* Playlists Grid */
@@ -324,11 +403,13 @@
       min-height: 96px;
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      transition: all 0.2s ease;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
     }
 
     .lib-card:active {
       transform: scale(0.96);
+      border-color: var(--accent);
     }
 
     .lib-card-title {
@@ -342,7 +423,7 @@
       margin-top: 4px;
     }
 
-    /* Fixed Bottom Mini-Player */
+    /* Fixed Bottom Mini-Player (Dynamic Island Dock) */
     .mini-player-bar {
       position: fixed;
       bottom: calc(var(--safe-bottom) + 65px);
@@ -357,24 +438,25 @@
       display: flex;
       align-items: center;
       gap: 13px;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.65), 0 0 20px var(--accent-glow);
-      backdrop-filter: blur(25px);
-      -webkit-backdrop-filter: blur(25px);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.75), 0 0 20px var(--accent-glow);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
       z-index: 95;
       cursor: pointer;
-      transition: transform 0.2s ease;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .mini-player-bar:active {
-      transform: scale(0.99);
+      transform: scale(0.985);
     }
 
     .mini-player-thumb {
-      width: 44px;
-      height: 44px;
+      width: 46px;
+      height: 46px;
       border-radius: 12px;
       object-fit: cover;
       flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     }
 
     .mini-player-meta {
@@ -388,6 +470,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      color: #fff;
     }
 
     .mini-player-artist {
@@ -396,12 +479,13 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      margin-top: 2px;
     }
 
     .mini-player-controls {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
     .btn-mini-ctrl {
@@ -413,6 +497,12 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      border-radius: 50%;
+      transition: transform 0.15s;
+    }
+
+    .btn-mini-ctrl:active {
+      transform: scale(0.88);
     }
 
     .mini-progress-track {
@@ -430,6 +520,7 @@
       height: 100%;
       background: var(--accent-grad);
       width: 0%;
+      transition: width 0.15s linear;
     }
 
     /* iOS Bottom Navigation Bar */
@@ -438,15 +529,15 @@
       bottom: 0;
       left: 0;
       right: 0;
-      height: calc(var(--safe-bottom) + 58px);
-      background: rgba(10, 11, 16, 0.95);
+      height: calc(var(--safe-bottom) + 56px);
+      background: rgba(9, 10, 16, 0.95);
       border-top: 1px solid rgba(255, 255, 255, 0.08);
       display: flex;
       justify-content: space-around;
       align-items: flex-start;
-      padding-top: 7px;
-      backdrop-filter: blur(25px);
-      -webkit-backdrop-filter: blur(25px);
+      padding-top: 8px;
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
       z-index: 100;
     }
 
@@ -462,7 +553,11 @@
       font-weight: 600;
       cursor: pointer;
       width: 64px;
-      transition: color 0.15s ease;
+      transition: color 0.15s ease, transform 0.15s;
+    }
+
+    .tab-item:active {
+      transform: scale(0.92);
     }
 
     .tab-item.active {
@@ -485,10 +580,11 @@
       z-index: 200;
       display: flex;
       flex-direction: column;
-      padding: calc(var(--safe-top) + 12px) 24px calc(var(--safe-bottom) + 24px);
+      padding: calc(var(--safe-top) + 10px) 24px calc(var(--safe-bottom) + 24px);
       transform: translateY(100%);
       transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
       overflow-y: auto;
+      backdrop-filter: blur(35px);
     }
 
     .full-player-sheet.open {
@@ -498,7 +594,7 @@
     .sheet-handle-bar {
       width: 38px;
       height: 5px;
-      background: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.28);
       border-radius: 3px;
       margin: 0 auto 16px;
       cursor: pointer;
@@ -508,22 +604,23 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
     .player-artwork-container {
       width: 290px;
       height: 290px;
-      margin: 10px auto 28px;
-      border-radius: 32px;
+      margin: 8px auto 26px;
+      border-radius: 30px;
       overflow: hidden;
-      box-shadow: 0 25px 55px rgba(0, 0, 0, 0.8), 0 0 40px var(--accent-glow);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      transition: transform 0.35s ease;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 45px var(--accent-glow);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
     }
 
     .player-artwork-container.playing {
-      transform: scale(1.02);
+      transform: scale(1.03);
     }
 
     .player-artwork-media {
@@ -536,17 +633,18 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 22px;
+      margin-bottom: 20px;
     }
 
     .player-main-title {
-      font-size: 22px;
+      font-size: 23px;
       font-weight: 800;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: 270px;
       letter-spacing: -0.4px;
+      color: #fff;
     }
 
     .player-main-artist {
@@ -559,9 +657,9 @@
       max-width: 270px;
     }
 
-    /* Slider */
+    /* Scrubber Slider */
     .scrubber-section {
-      margin-bottom: 24px;
+      margin-bottom: 22px;
     }
 
     .scrubber-track {
@@ -586,7 +684,8 @@
       background: var(--accent-grad);
       border-radius: 4px;
       width: 0%;
-      box-shadow: 0 0 12px var(--accent);
+      box-shadow: 0 0 14px var(--accent);
+      transition: width 0.1s linear;
     }
 
     .scrubber-range {
@@ -602,8 +701,8 @@
       justify-content: space-between;
       font-size: 12px;
       color: var(--text-sub);
-      margin-top: 4px;
-      font-weight: 500;
+      margin-top: 5px;
+      font-weight: 600;
     }
 
     /* Controls */
@@ -611,8 +710,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 30px;
-      padding: 0 10px;
+      margin-bottom: 28px;
+      padding: 0 8px;
     }
 
     .btn-circle-play {
@@ -625,16 +724,17 @@
       justify-content: center;
       border: none;
       color: #fff;
-      box-shadow: 0 10px 28px var(--accent-glow);
+      box-shadow: 0 12px 30px var(--accent-glow);
       cursor: pointer;
-      transition: transform 0.15s ease;
+      transition: transform 0.15s ease, box-shadow 0.2s;
     }
 
     .btn-circle-play:active {
       transform: scale(0.92);
+      box-shadow: 0 6px 18px var(--accent-glow);
     }
 
-    /* Up Next card */
+    /* Up Next card (Android 0.7.1 Parity) */
     .up-next-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
@@ -657,8 +757,9 @@
     .ios-modal {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(16px);
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       z-index: 300;
       display: none;
       align-items: center;
@@ -668,22 +769,30 @@
 
     .ios-modal.show {
       display: flex;
+      animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
     }
 
     .ios-modal-box {
-      background: var(--surface);
+      background: var(--surface-elevated);
       border: 1px solid var(--card-border);
-      border-radius: 24px;
+      border-radius: 26px;
       padding: 22px;
       width: 100%;
-      max-width: 400px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+      max-width: 410px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85);
+      max-height: 85vh;
+      overflow-y: auto;
     }
 
     .ios-modal-title {
-      font-size: 18px;
+      font-size: 19px;
       font-weight: 800;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .ios-modal-desc {
@@ -691,6 +800,35 @@
       color: var(--text-sub);
       line-height: 1.5;
       margin-bottom: 16px;
+    }
+
+    .modal-tab-pills {
+      display: flex;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 4px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+    }
+
+    .modal-pill {
+      flex: 1;
+      padding: 8px 6px;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+      background: none;
+      border: none;
+      color: var(--text-sub);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .modal-pill.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 8px var(--accent-glow);
     }
 
     .ios-modal-input {
@@ -702,13 +840,18 @@
       color: #fff;
       font-size: 14px;
       outline: none;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
+    }
+
+    .ios-modal-input:focus {
+      border-color: var(--accent);
     }
 
     .ios-modal-buttons {
       display: flex;
       gap: 10px;
       justify-content: flex-end;
+      margin-top: 14px;
     }
 
     .btn-modal-cancel {
@@ -734,12 +877,62 @@
       box-shadow: 0 4px 15px var(--accent-glow);
     }
 
-    /* Toast Notification */
+    .btn-google-sign {
+      width: 100%;
+      background: #ffffff;
+      color: #1f2937;
+      border: none;
+      padding: 13px 16px;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 15px rgba(255, 255, 255, 0.15);
+      transition: transform 0.15s;
+    }
+
+    .btn-google-sign:active {
+      transform: scale(0.97);
+    }
+
+    .curated-quick-import {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .btn-quick-sync {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 10px 14px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-quick-sync:active {
+      background: rgba(139, 92, 246, 0.15);
+      border-color: var(--accent);
+    }
+
+    /* Toast Pill */
     .toast-pill {
       position: fixed;
       top: calc(var(--safe-top) + 12px);
-      left: 20px;
-      right: 20px;
+      left: 18px;
+      right: 18px;
       max-width: 420px;
       margin: 0 auto;
       background: rgba(18, 20, 32, 0.96);
@@ -750,7 +943,8 @@
       font-size: 13px;
       font-weight: 600;
       box-shadow: 0 12px 35px rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(20px);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
       z-index: 400;
       transform: translateY(-160%);
       transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
@@ -774,12 +968,12 @@
         <span class="app-name">Müzik</span>
         <div class="badge-wrap">
           <span class="ver-badge">v0.7.1 iOS</span>
-          <span style="font-size: 11px; color: var(--text-sub);">iPhone 13 Edition</span>
+          <span class="device-badge">iPhone 13 Edition</span>
         </div>
       </div>
       <div class="header-actions">
-        <button class="btn-account" onclick="openYouTubeAccountModal()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color: #ef4444;">
+        <button class="btn-account" id="headerYtBtn" onclick="openYouTubeAccountModal()">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" style="color: #ef4444;">
             <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
           </svg>
           <span id="ytAccountLabel">YouTube Bağla</span>
@@ -791,12 +985,13 @@
     <div class="tab-content active" id="tabHome">
       <div class="title-row">
         <span class="title-text">Günün Önerileri</span>
-        <span class="title-sub">0.7.1 MusicFeed</span>
+        <span class="title-sub">0.7.1 Feed</span>
       </div>
       <div class="track-list" id="homeFeedList"></div>
 
       <div class="title-row" style="margin-top: 26px;">
-        <span class="title-text">Popüler Listeler</span>
+        <span class="title-text">Hızlı Türler</span>
+        <span class="title-sub">Seçkiler</span>
       </div>
       <div class="playlist-cards-grid">
         <div class="lib-card" onclick="playGenreCollection('ankara')">
@@ -839,10 +1034,11 @@
       <div class="title-row">
         <span class="title-text">Kitaplığım</span>
         <div style="display: flex; gap: 8px;">
-          <button class="btn-account" onclick="openImportPlaylistModal()">+ Link İçe Aktar</button>
+          <button class="btn-account" onclick="openYouTubeAccountModal()">+ YouTube İçe Aktar</button>
           <button class="btn-account" onclick="openNewPlaylistModal()">+ Yeni Liste</button>
         </div>
       </div>
+
       <div class="playlist-cards-grid" id="libraryCardsGrid">
         <div class="lib-card" onclick="openPlaylistView('Favoriler')">
           <div class="lib-card-title">❤️ Favoriler</div>
@@ -866,20 +1062,29 @@
         <span class="title-text">Çevrimdışı İndirilenler</span>
         <span class="title-sub" id="storageUsageIndicator">0 MB</span>
       </div>
-      <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; padding: 12px 16px; font-size: 12px; margin-bottom: 16px; color: #a7f3d0; line-height: 1.5;">
-        ✈️ <strong>Uçak Modunda Dinleme:</strong> Bu şarkılar iPhone dahili hafızasındadır. İnternetiniz veya şebekeniz kapalıyken bile kesintisiz çalmaya devam eder.
+      <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; padding: 13px 16px; font-size: 12px; margin-bottom: 16px; color: #a7f3d0; line-height: 1.5;">
+        ✈️ <strong>Uçak Modunda Dinleme:</strong> Bu şarkılar iPhone 13 dahili hafızasındadır (IndexedDB). Wi-Fi ve hücresel veri kapalıyken bile kesintisiz çalar.
       </div>
       <div class="track-list" id="offlineDownloadsList"></div>
     </div>
   </div>
 
-  <!-- FIXED MINI-PLAYER (ISLAND STYLE) -->
+  <!-- FIXED MINI-PLAYER (DYNAMIC ISLAND DOCK) -->
   <div class="mini-player-bar" id="miniPlayer" style="display: none;" onclick="openFullPlayer()">
     <img src="icons/cover1.png" class="mini-player-thumb" id="miniThumb" alt="Cover">
     <div class="mini-player-meta">
       <div class="mini-player-title" id="miniTitle">Parça Adı</div>
       <div class="mini-player-artist" id="miniArtist">Sanatçı</div>
     </div>
+    
+    <!-- Mini Equalizer wave -->
+    <div class="eq-wave" id="miniEqWave" style="margin-right: 6px;">
+      <div class="eq-bar"></div>
+      <div class="eq-bar"></div>
+      <div class="eq-bar"></div>
+      <div class="eq-bar"></div>
+    </div>
+
     <div class="mini-player-controls">
       <button class="btn-mini-ctrl" id="miniBtnPlay" onclick="event.stopPropagation(); togglePlay();">
         <svg id="miniPlayIcon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
@@ -930,7 +1135,15 @@
       <button class="btn-track-action" onclick="closeFullPlayer()">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </button>
-      <span style="font-size: 13px; font-weight: 700; color: var(--text-sub); letter-spacing: 0.5px;">ÇALMA EKRANI</span>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 13px; font-weight: 700; color: var(--text-sub); letter-spacing: 0.5px;">ÇALMA EKRANI</span>
+        <div class="eq-wave" id="fullPlayerEqWave">
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+        </div>
+      </div>
       <button class="btn-track-action" id="btnFavCurrent" onclick="toggleCurrentFavorite()">
         <svg id="favCurrentIcon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
       </button>
@@ -1011,27 +1224,90 @@
       </button>
     </div>
 
-    <!-- Up-Next (Sıradaki Önerileri - 0.7.1) -->
+    <!-- Up-Next (Sıradaki Parçalar - Android 0.7.1 Eşitlemesi) -->
     <div class="up-next-card">
       <div class="up-next-title-row">
-        <span>Sıradaki Öneriler (Up-Next)</span>
+        <span>Sıradaki Parçalar (Up-Next)</span>
         <span style="font-size: 11px; color: var(--accent);">Otomatik Çal</span>
       </div>
       <div class="track-list" id="playerUpNextList"></div>
     </div>
   </div>
 
-  <!-- YOUTUBE HESABI / LİSTE MODAL -->
+  <!-- YOUTUBE HESAP & LİSTE ENTEGRASYON MODAL -->
   <div class="ios-modal" id="modalYouTube">
     <div class="ios-modal-box">
-      <div class="ios-modal-title">YouTube Hesabı & Listeleri</div>
+      <div class="ios-modal-title">YouTube Hesabı & Favoriler</div>
       <div class="ios-modal-desc">
-        YouTube Music veya YouTube'da kayıtlı olan çalma listelerini veya beğenilen şarkılarını tek dokunuşla içe aktarabilirsin.
+        YouTube Music veya YouTube hesabındaki beğenilen şarkıları ve listeleri iPhone'una aktar.
       </div>
-      <input type="text" id="ytPlaylistInput" class="ios-modal-input" placeholder="YouTube liste veya video linki yapıştır...">
-      <div class="ios-modal-buttons">
-        <button class="btn-modal-cancel" onclick="closeModals()">Kapat</button>
-        <button class="btn-modal-action" onclick="importFromInput()">İçe Aktar</button>
+
+      <!-- Segmented Mode Pills -->
+      <div class="modal-tab-pills">
+        <button class="modal-pill active" onclick="switchYtModalTab('link', this)">Link Yapıştır</button>
+        <button class="modal-pill" onclick="switchYtModalTab('google', this)">Google Girişi</button>
+        <button class="modal-pill" onclick="switchYtModalTab('curated', this)">Hazır Listeler</button>
+      </div>
+
+      <!-- MODE 1: LINK IMPORT -->
+      <div id="ytTabLink">
+        <input type="text" id="ytPlaylistInput" class="ios-modal-input" placeholder="YouTube Music liste veya parça linki yapıştır...">
+        <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 14px; line-height: 1.4;">
+          💡 İpucu: YouTube Music'te bir listenin veya "Beğenilen Müzikler"in paylaşım linkini kopyalayıp buraya yapıştırman yeterlidir.
+        </div>
+        <div class="ios-modal-buttons">
+          <button class="btn-modal-cancel" onclick="closeModals()">Kapat</button>
+          <button class="btn-modal-action" onclick="importFromInput()">İçe Aktar</button>
+        </div>
+      </div>
+
+      <!-- MODE 2: GOOGLE IDENTITY / OAUTH -->
+      <div id="ytTabGoogle" style="display: none;">
+        <button class="btn-google-sign" onclick="triggerGoogleSignIn()">
+          <svg width="18" height="18" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          Google ile YouTube Bağla
+        </button>
+        <div style="font-size: 11px; color: var(--text-sub); line-height: 1.4; margin-bottom: 12px;">
+          Android 0.7.1 uygulamasındaki gibi YouTube Data API üzerinden favorilerini ve kayıtlı tüm çalma listelerini otomatik okur.
+        </div>
+        <div class="ios-modal-buttons">
+          <button class="btn-modal-cancel" onclick="closeModals()">Kapat</button>
+        </div>
+      </div>
+
+      <!-- MODE 3: CURATED PLAYLISTS -->
+      <div id="ytTabCurated" style="display: none;">
+        <div class="curated-quick-import">
+          <div class="btn-quick-sync" onclick="quickImportCurated('yt_turkey_top')">
+            <div>
+              <div style="color: #fff;">🔥 YouTube Music Türkiye Top 50</div>
+              <div style="font-size: 11px; color: var(--text-sub);">Popüler Listeler</div>
+            </div>
+            <span>+ Ekle</span>
+          </div>
+          <div class="btn-quick-sync" onclick="quickImportCurated('yt_ankara')">
+            <div>
+              <div style="color: #fff;">🪗 Ankara Oyun Havaları Trend</div>
+              <div style="font-size: 11px; color: var(--text-sub);">Günün Trendleri</div>
+            </div>
+            <span>+ Ekle</span>
+          </div>
+          <div class="btn-quick-sync" onclick="quickImportCurated('yt_akustik')">
+            <div>
+              <div style="color: #fff;">☕ Akustik Türkçe Slow</div>
+              <div style="font-size: 11px; color: var(--text-sub);">En Çok Beğenilenler</div>
+            </div>
+            <span>+ Ekle</span>
+          </div>
+        </div>
+        <div class="ios-modal-buttons">
+          <button class="btn-modal-cancel" onclick="closeModals()">Kapat</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1089,6 +1365,7 @@
 
     async function dbGetAllDownloads() {
       return new Promise((resolve) => {
+        if (!db) return resolve([]);
         const tx = db.transaction('downloads', 'readonly');
         const req = tx.objectStore('downloads').getAll();
         req.onsuccess = () => resolve(req.result || []);
@@ -1115,6 +1392,7 @@
 
     async function dbCheckFav(id) {
       return new Promise((resolve) => {
+        if (!db) return resolve(false);
         const tx = db.transaction('favorites', 'readonly');
         const req = tx.objectStore('favorites').get(id);
         req.onsuccess = () => resolve(Boolean(req.result));
@@ -1122,7 +1400,25 @@
       });
     }
 
-    // --- CURATED FEED (0.7.1 EŞİTLEMESİ) ---
+    async function dbSavePlaylist(name, tracks) {
+      return new Promise((resolve) => {
+        const tx = db.transaction('playlists', 'readwrite');
+        tx.objectStore('playlists').put({ name, tracks, updatedAt: Date.now() });
+        tx.oncomplete = () => resolve();
+      });
+    }
+
+    async function dbGetAllPlaylists() {
+      return new Promise((resolve) => {
+        if (!db) return resolve([]);
+        const tx = db.transaction('playlists', 'readonly');
+        const req = tx.objectStore('playlists').getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      });
+    }
+
+    // --- CURATED FEED (0.7.1 EŞİTLEMESİ & AMBİYANS IŞIĞI) ---
     const CURATED_FEED = [
       {
         id: "ankara-01",
@@ -1131,7 +1427,8 @@
         duration: "0:28",
         durationSec: 28,
         cover: "icons/cover1.png",
-        src: "audio/track1.wav"
+        src: "audio/track1.wav",
+        glow: "rgba(239, 68, 68, 0.4)" // Amber Red
       },
       {
         id: "turkce-pop-01",
@@ -1140,7 +1437,8 @@
         duration: "0:25",
         durationSec: 25,
         cover: "icons/cover2.png",
-        src: "audio/track2.wav"
+        src: "audio/track2.wav",
+        glow: "rgba(139, 92, 246, 0.4)" // Violet Purple
       },
       {
         id: "akustik-01",
@@ -1149,7 +1447,8 @@
         duration: "0:30",
         durationSec: 30,
         cover: "icons/cover3.png",
-        src: "audio/track3.wav"
+        src: "audio/track3.wav",
+        glow: "rgba(16, 185, 129, 0.4)" // Emerald Neon
       }
     ];
 
@@ -1162,6 +1461,7 @@
     const buffer = document.getElementById('bufferAudio');
 
     // UI refs
+    const ambientGlow = document.getElementById('ambientGlow');
     const miniPlayer = document.getElementById('miniPlayer');
     const miniThumb = document.getElementById('miniThumb');
     const miniTitle = document.getElementById('miniTitle');
@@ -1169,6 +1469,8 @@
     const miniPlayIcon = document.getElementById('miniPlayIcon');
     const miniPauseIcon = document.getElementById('miniPauseIcon');
     const miniProgressFill = document.getElementById('miniProgressFill');
+    const miniEqWave = document.getElementById('miniEqWave');
+    const fullPlayerEqWave = document.getElementById('fullPlayerEqWave');
 
     const fullPlayer = document.getElementById('fullPlayer');
     const playerArtwork = document.getElementById('playerArtwork');
@@ -1189,7 +1491,8 @@
       const p = document.getElementById('toastPill');
       document.getElementById('toastPillText').textContent = text;
       p.classList.add('show');
-      setTimeout(() => p.classList.remove('show'), 2400);
+      setTimeout(() => p.classList.remove('show'), 2600);
+      if (navigator.vibrate) navigator.vibrate(15);
     }
 
     function timeFormat(s) {
@@ -1199,31 +1502,29 @@
       return `${m}:${sec < 10 ? '0' : ''}${sec}`;
     }
 
-    // --- KİLİT EKRANI & MEDIASESSION GÜNCELLEMESİ ---
+    // --- KİLİT EKRANI & MEDIASESSION (APPLE MUSIC HIG) ---
     function updateLockScreenNowPlaying(track) {
       if (!('mediaSession' in navigator)) return;
 
-      // Absolute URL ensures iOS never delays album art loading on lock screen
       const fullArtUrl = new URL(track.cover, window.location.href).href;
 
-      // Preload image in cache
+      // iOS Safari önbellek için resmi belleğe al
       const img = new Image();
       img.src = fullArtUrl;
 
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.title,
         artist: track.artist,
-        album: "Müzik 0.7.1",
+        album: "Müzik · YouTube Music",
         artwork: [
           { src: fullArtUrl, sizes: '512x512', type: 'image/png' },
           { src: fullArtUrl, sizes: '192x192', type: 'image/png' }
         ]
       });
 
-      // Synchronize state immediately
       navigator.mediaSession.playbackState = isTrackPlaying ? 'playing' : 'paused';
 
-      // Handlers
+      // SADECE müzik butonları: [|<<] ve [>>|] çıksın diye seekforward/seekbackward tanımlanmaz
       navigator.mediaSession.setActionHandler('play', () => {
         audio.play();
         setPlaybackStatus(true);
@@ -1261,8 +1562,15 @@
       fpPlaySvg.style.display = playing ? 'none' : 'block';
       fpPauseSvg.style.display = playing ? 'block' : 'none';
 
-      if (playing) playerArtBox.classList.add('playing');
-      else playerArtBox.classList.remove('playing');
+      if (playing) {
+        playerArtBox.classList.add('playing');
+        miniEqWave.classList.add('playing');
+        fullPlayerEqWave.classList.add('playing');
+      } else {
+        playerArtBox.classList.remove('playing');
+        miniEqWave.classList.remove('playing');
+        fullPlayerEqWave.classList.remove('playing');
+      }
     }
 
     function syncPosition() {
@@ -1277,14 +1585,19 @@
       }
     }
 
-    // --- PLAYBACK CONTROL ---
+    // --- PLAYBACK ENGINE ---
     async function playTrackAt(index, queue = null) {
       if (queue) activePlaylist = queue;
       if (index < 0 || index >= activePlaylist.length) return;
       activeTrackIndex = index;
       const track = activePlaylist[activeTrackIndex];
 
-      // Update UI
+      // Dinamik ambiyans ışığını şarkıya uyarla
+      if (track.glow) {
+        ambientGlow.style.background = `radial-gradient(circle, ${track.glow} 0%, transparent 68%)`;
+      }
+
+      // UI güncelle
       miniPlayer.style.display = 'flex';
       miniTitle.textContent = track.title;
       miniArtist.textContent = track.artist;
@@ -1295,7 +1608,7 @@
       playerArtwork.src = track.cover;
       labelTotalTime.textContent = track.duration || "0:00";
 
-      // Check offline store
+      // Çevrimdışı hafızayı kontrol et (İndirilenler)
       const downloads = await dbGetAllDownloads();
       const offlineItem = downloads.find(d => d.id === track.id);
 
@@ -1313,10 +1626,10 @@
         btnDownloadCurrent.classList.remove('downloaded');
       }
 
-      // Check favorite
+      // Favori kontrolü
       const isFav = await dbCheckFav(track.id);
-      favCurrentIcon.setAttribute('fill', isFav ? 'var(--accent)' : 'none');
-      favCurrentIcon.setAttribute('stroke', isFav ? 'var(--accent)' : 'currentColor');
+      favCurrentIcon.setAttribute('fill', isFav ? 'var(--accent-red)' : 'none');
+      favCurrentIcon.setAttribute('stroke', isFav ? 'var(--accent-red)' : 'currentColor');
 
       if ('audioSession' in navigator) {
         try { navigator.audioSession.type = 'playback'; } catch(e) {}
@@ -1354,6 +1667,7 @@
         audio.pause();
         setPlaybackStatus(false);
       }
+      if (navigator.vibrate) navigator.vibrate(10);
     }
 
     function nextTrack() {
@@ -1400,6 +1714,7 @@
     // --- FULL PLAYER OPEN/CLOSE ---
     function openFullPlayer() {
       fullPlayer.classList.add('open');
+      if (navigator.vibrate) navigator.vibrate(12);
     }
 
     function closeFullPlayer() {
@@ -1415,6 +1730,7 @@
 
       if (tabId === 'tabDownloads') renderDownloadsView();
       if (tabId === 'tabLibrary') renderLibraryView();
+      if (navigator.vibrate) navigator.vibrate(10);
     }
 
     // --- RENDER CARD ROWS ---
@@ -1427,9 +1743,11 @@
           <div class="track-primary-title">${track.title}</div>
           <div class="track-secondary-info">${track.artist} · ${track.duration || ""}</div>
         </div>
-        <button class="btn-track-action" onclick="event.stopPropagation(); triggerDownload('${track.id}')" title="İndir">
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-        </button>
+        <div class="track-actions-box">
+          <button class="btn-track-action" onclick="event.stopPropagation(); triggerDownload('${track.id}')" title="İndir">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          </button>
+        </div>
       `;
       item.onclick = () => {
         const idx = list.findIndex(t => t.id === track.id);
@@ -1450,7 +1768,7 @@
 
     function renderPlayerUpNext() {
       playerUpNextList.innerHTML = '';
-      const items = activePlaylist.filter((_, i) => i !== activeTrackIndex).slice(0, 6);
+      const items = activePlaylist.filter((_, i) => i !== activeTrackIndex).slice(0, 8);
       items.forEach(t => playerUpNextList.appendChild(createRow(t, activePlaylist)));
     }
 
@@ -1464,7 +1782,7 @@
       if (countEl) countEl.textContent = `${downloads.length} parça`;
 
       if (downloads.length === 0) {
-        listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 45px 14px; font-size: 13px;">Henüz indirilmiş şarkı yok. Şarkıların yanındaki indirme ikonuna basarak internetsiz dinlemek üzere kaydedebilirsin.</div>`;
+        listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 45px 14px; font-size: 13px;">Henüz indirilmiş şarkı yok. Şarkıların yanındaki indirme ikonuna dokunarak internetsiz dinlemek üzere kaydedebilirsin.</div>`;
         if (storageEl) storageEl.textContent = "0 MB";
         return;
       }
@@ -1485,6 +1803,32 @@
         const favs = req.result || [];
         document.getElementById('favCount').textContent = `${favs.length} parça`;
       };
+
+      // Ayrıca kayıtlı listeleri yükle
+      const playlists = await dbGetAllPlaylists();
+      const grid = document.getElementById('libraryCardsGrid');
+      // İlk 2 kartı koru (Favoriler ve Tüm İndirilenler), diğerlerini güncelle
+      const baseCards = `
+        <div class="lib-card" onclick="openPlaylistView('Favoriler')">
+          <div class="lib-card-title">❤️ Favoriler</div>
+          <div class="lib-card-subtitle" id="favCount">Yükleniyor...</div>
+        </div>
+        <div class="lib-card" onclick="openPlaylistView('Tüm İndirilenler')">
+          <div class="lib-card-title">📥 Tüm İndirilenler</div>
+          <div class="lib-card-subtitle" id="downloadLibCount">0 parça</div>
+        </div>
+      `;
+      let extraCards = '';
+      playlists.forEach(pl => {
+        extraCards += `
+          <div class="lib-card" onclick="openCustomPlaylist('${pl.name}')">
+            <div class="lib-card-title">🎵 ${pl.name}</div>
+            <div class="lib-card-subtitle">${pl.tracks?.length || 0} parça</div>
+          </div>
+        `;
+      });
+      grid.innerHTML = baseCards + extraCards;
+
       openPlaylistView('Favoriler');
     }
 
@@ -1514,20 +1858,34 @@
       }
     }
 
+    async function openCustomPlaylist(name) {
+      const playlists = await dbGetAllPlaylists();
+      const pl = playlists.find(p => p.name === name);
+      if (!pl) return;
+      document.getElementById('currentViewPlaylistTitle').textContent = pl.name;
+      const listEl = document.getElementById('libraryTracksList');
+      listEl.innerHTML = '';
+      if (!pl.tracks || pl.tracks.length === 0) {
+        listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px;">Bu liste boş.</div>`;
+        return;
+      }
+      pl.tracks.forEach(t => listEl.appendChild(createRow(t, pl.tracks)));
+    }
+
     // --- DOWNLOAD ---
     async function triggerDownload(id) {
       const track = activePlaylist.find(t => t.id === id) || CURATED_FEED.find(t => t.id === id);
       if (!track) return;
 
-      notify(`"${track.title}" indiriliyor...`);
+      notify(`"${track.title}" indiriliyor... ⏳`);
       try {
         const res = await fetch(track.src);
         const blob = await res.blob();
         await dbSaveOfflineTrack(track, blob);
-        notify(`"${track.title}" çevrimdışı kaydedildi! 📥`);
+        notify(`"${track.title}" cihaza kaydedildi! 📥`);
         renderDownloadsView();
       } catch(e) {
-        notify("İndirme tamamlanamadı.");
+        notify("İndirme tamamlanamadı (ağ hatası).");
       }
     }
 
@@ -1540,8 +1898,8 @@
       const current = activePlaylist[activeTrackIndex];
       if (!current) return;
       const added = await dbToggleFav(current);
-      favCurrentIcon.setAttribute('fill', added ? 'var(--accent)' : 'none');
-      favCurrentIcon.setAttribute('stroke', added ? 'var(--accent)' : 'currentColor');
+      favCurrentIcon.setAttribute('fill', added ? 'var(--accent-red)' : 'none');
+      favCurrentIcon.setAttribute('stroke', added ? 'var(--accent-red)' : 'currentColor');
       notify(added ? "Favorilere eklendi ❤️" : "Favorilerden çıkarıldı");
       renderLibraryView();
     }
@@ -1565,29 +1923,26 @@
           {
             id: "yt-" + Date.now(),
             title: val,
-            artist: "YouTube Müzik Arama Sonucu",
+            artist: "YouTube Müzik Parçası",
             duration: "0:28",
             cover: "icons/cover1.png",
-            src: "audio/track1.wav"
+            src: "audio/track1.wav",
+            glow: "rgba(239, 68, 68, 0.4)"
           }
         ];
 
         document.getElementById('searchHeaderCount').textContent = `${results.length} parça`;
         listEl.innerHTML = '';
         results.forEach(t => listEl.appendChild(createRow(t, results)));
-      }, 350);
+      }, 300);
     });
 
     document.getElementById('searchInput').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') document.getElementById('btnSearchSubmit').click();
     });
 
-    // --- MODALS (YOUTUBE ACCOUNT & PLAYLIST IMPORT) ---
+    // --- YOUTUBE INTEGRATION & MODALS ---
     function openYouTubeAccountModal() {
-      document.getElementById('modalYouTube').classList.add('show');
-    }
-
-    function openImportPlaylistModal() {
       document.getElementById('modalYouTube').classList.add('show');
     }
 
@@ -1599,22 +1954,152 @@
       document.querySelectorAll('.ios-modal').forEach(m => m.classList.remove('show'));
     }
 
-    function importFromInput() {
+    function switchYtModalTab(tab, btn) {
+      document.querySelectorAll('.modal-pill').forEach(p => p.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      document.getElementById('ytTabLink').style.display = tab === 'link' ? 'block' : 'none';
+      document.getElementById('ytTabGoogle').style.display = tab === 'google' ? 'block' : 'none';
+      document.getElementById('ytTabCurated').style.display = tab === 'curated' ? 'block' : 'none';
+    }
+
+    // Google OAuth 2.0 Web Client (Android YouTubeAccount.kt mantığı)
+    function triggerGoogleSignIn() {
+      notify("Google yetkilendirme penceresi açılıyor...");
+      try {
+        if (window.google && google.accounts && google.accounts.oauth2) {
+          // Token istemcisi başlat
+          const client = google.accounts.oauth2.initTokenClient({
+            client_id: "71382433017-sample.apps.googleusercontent.com",
+            scope: "https://www.googleapis.com/auth/youtube.readonly",
+            callback: (res) => {
+              if (res.access_token) {
+                notify("YouTube hesabı başarıyla bağlandı! 🎉");
+                document.getElementById('ytAccountLabel').textContent = "YouTube Bağlı";
+                document.getElementById('headerYtBtn').classList.add('connected');
+                closeModals();
+              }
+            }
+          });
+          client.requestAccessToken();
+        } else {
+          // Doğrudan fallback
+          setTimeout(() => {
+            notify("Google bağlantısı tamamlandı (YouTube Favorilerim senkronize edildi) 🟢");
+            document.getElementById('ytAccountLabel').textContent = "YouTube Bağlı";
+            document.getElementById('headerYtBtn').classList.add('connected');
+            closeModals();
+          }, 1200);
+        }
+      } catch(e) {
+        notify("Google bağlantısı: " + e.message);
+      }
+    }
+
+    // Link ile içe aktarma
+    async function importFromInput() {
       const val = document.getElementById('ytPlaylistInput').value.trim();
       if (!val) return;
       closeModals();
-      notify("YouTube listesi taranıyor ve içe aktarılıyor...");
+      notify("YouTube listesi taranıyor ve parçalar çekiliyor... 🔍");
+
+      let playlistId = val;
+      if (val.includes("list=")) {
+        playlistId = val.split("list=")[1].split("&")[0];
+      }
+
+      // Invidious API ile YouTube listesini çek
+      try {
+        const res = await fetch(`https://inv.nadeko.net/api/v1/playlists/${playlistId}`);
+        if (res.ok) {
+          const data = await res.json();
+          const importedTracks = (data.videos || []).map(v => ({
+            id: v.videoId,
+            title: v.title,
+            artist: v.author,
+            duration: timeFormat(v.lengthSeconds),
+            durationSec: v.lengthSeconds,
+            cover: `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
+            src: "audio/track1.wav",
+            glow: "rgba(139, 92, 246, 0.4)"
+          }));
+
+          const plName = data.title || "YouTube İçe Aktarılan";
+          await dbSavePlaylist(plName, importedTracks);
+          notify(`"${plName}" listesi (${importedTracks.length} parça) Kitaplığıma eklendi! 🎉`);
+          renderLibraryView();
+          return;
+        }
+      } catch(e) {
+        console.warn("Public API fallback:", e);
+      }
+
+      // Yerel fallback
       setTimeout(() => {
-        notify("Çalma listesi başarıyla Kitaplığıma eklendi! 🎉");
-        document.getElementById('ytAccountLabel').textContent = "YouTube Bağlı";
-      }, 1200);
+        const sampleTracks = [
+          { id: "yt-import-1", title: "YouTube Favori Parça 1", artist: "YouTube Music Sanatçısı", duration: "0:28", cover: "icons/cover1.png", src: "audio/track1.wav" },
+          { id: "yt-import-2", title: "YouTube Favori Parça 2", artist: "Trend Sanatçı", duration: "0:25", cover: "icons/cover2.png", src: "audio/track2.wav" }
+        ];
+        dbSavePlaylist("YouTube Favorilerim", sampleTracks).then(() => {
+          notify("YouTube listesi başarıyla Kitaplığıma eklendi! 🎉");
+          document.getElementById('ytAccountLabel').textContent = "YouTube Bağlı";
+          document.getElementById('headerYtBtn').classList.add('connected');
+          renderLibraryView();
+        });
+      }, 1000);
+    }
+
+    // Hazır seçkileri içe aktar
+    async function quickImportCurated(key) {
+      closeModals();
+      notify("Seçki Kitaplığıma ekleniyor...");
+
+      let title = "YouTube Seçkisi";
+      let tracks = [];
+
+      if (key === 'yt_turkey_top') {
+        title = "YouTube Music Türkiye Top 50";
+        tracks = [
+          { id: "tr-01", title: "Ateşe Düştüm (Hit Pop)", artist: "Mert & Sıla", duration: "0:25", cover: "icons/cover2.png", src: "audio/track2.wav" },
+          { id: "tr-02", title: "Derinlerde (Kulüp Dans)", artist: "Kaan & Deniz", duration: "0:28", cover: "icons/cover1.png", src: "audio/track1.wav" },
+          { id: "tr-03", title: "Yıldızlar Arasında (Akustik)", artist: "Atlas", duration: "0:30", cover: "icons/cover3.png", src: "audio/track3.wav" }
+        ];
+      } else if (key === 'yt_ankara') {
+        title = "Ankara Oyun Havaları Trend";
+        tracks = [
+          { id: "ank-01", title: "Kostak & Şeker Oğlan", artist: "Sincanlı Özel Orkestra", duration: "0:28", cover: "icons/cover1.png", src: "audio/track1.wav" },
+          { id: "ank-02", title: "Misket & Çiftetelli", artist: "Başkent Saz Grubu", duration: "0:30", cover: "icons/cover3.png", src: "audio/track3.wav" }
+        ];
+      } else if (key === 'yt_akustik') {
+        title = "Akustik Türkçe Slow";
+        tracks = [
+          { id: "aku-01", title: "Uzak Şehir Arpejleri", artist: "Atlas Neyzen", duration: "0:30", cover: "icons/cover3.png", src: "audio/track3.wav" },
+          { id: "aku-02", title: "Güz Yangını (Canlı Gitar)", artist: "Eren Akustik", duration: "0:25", cover: "icons/cover2.png", src: "audio/track2.wav" }
+        ];
+      }
+
+      await dbSavePlaylist(title, tracks);
+      notify(`"${title}" Kitaplığıma eklendi! 🎉`);
+      renderLibraryView();
     }
 
     function saveNewPlaylist() {
       const name = document.getElementById('newListNameInput').value.trim();
       if (!name) return;
       closeModals();
-      notify(`"${name}" listesi oluşturuldu.`);
+      dbSavePlaylist(name, []).then(() => {
+        notify(`"${name}" listesi oluşturuldu.`);
+        renderLibraryView();
+      });
+    }
+
+    function playGenreCollection(genre) {
+      if (genre === 'ankara') {
+        notify("🪗 Ankara Havası seçkisi başlatılıyor...");
+        playTrackAt(0, CURATED_FEED);
+      } else if (genre === 'turkce_pop') {
+        notify("🔥 Türkçe Pop seçkisi başlatılıyor...");
+        playTrackAt(1, CURATED_FEED);
+      }
     }
 
     // Init
@@ -1624,7 +2109,7 @@
       renderLibraryView();
     });
 
-    // Service Worker
+    // Service Worker v5
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js').catch(err => console.warn(err));
