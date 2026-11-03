@@ -993,7 +993,7 @@
       <div class="header-brand">
         <span class="app-name">Müzik</span>
         <div class="badge-wrap">
-          <span class="ver-badge">v0.7.2 iOS</span>
+          <span class="ver-badge">v0.7.4 iOS</span>
           <span class="device-badge">iPhone 13 Edition</span>
         </div>
       </div>
@@ -1011,7 +1011,7 @@
     <div class="tab-content active" id="tabHome">
       <div class="title-row">
         <span class="title-text">Günün Önerileri</span>
-        <span class="title-sub">0.7.2 Live</span>
+        <span class="title-sub">0.7.4 Live</span>
       </div>
       <div class="track-list" id="homeFeedList"></div>
 
@@ -1534,14 +1534,20 @@
       return INVIDIOUS_INSTANCES[0]; // en azından dene
     }
 
-    function buildStreamUrl(videoId, instance) {
-      return `${instance}/latest_version?id=${videoId}&itag=140&local=true`;
-    }
+    const COMPANION_INSTANCES = [
+        "https://yt-comp1.chocolatemoo53.com",
+        "https://yt-comp2.chocolatemoo53.com",
+        "https://yt-comp3.chocolatemoo53.com"
+      ];
 
-    async function getStreamUrl(videoId) {
-      const inst = await getWorkingInstance();
-      return buildStreamUrl(videoId, inst);
-    }
+      function buildStreamUrl(videoId, host = "https://yt-comp1.chocolatemoo53.com") {
+        const cleanId = String(videoId).replace(/^(yt-|ankara-|turkce-pop-|akustik-)/, '');
+        return `${host}/companion/latest_version?id=${cleanId}&itag=140&local=true`;
+      }
+
+      async function getStreamUrl(videoId) {
+        return buildStreamUrl(videoId, "https://yt-comp1.chocolatemoo53.com");
+      }
 
         const CURATED_FEED = [
       {
@@ -1551,7 +1557,7 @@
         duration: "7:09",
         durationSec: 429,
         cover: "icons/cover1.jpg",
-        src: "https://yt.chocolatemoo53.com/latest_version?id=310yTVKpd_A&itag=140&local=true",
+        src: "https://yt-comp1.chocolatemoo53.com/companion/latest_version?id=310yTVKpd_A&itag=140&local=true",
         glow: "rgba(239, 68, 68, 0.45)"
       },
       {
@@ -1561,7 +1567,7 @@
         duration: "3:56",
         durationSec: 236,
         cover: "icons/cover2.jpg",
-        src: "https://yt.chocolatemoo53.com/latest_version?id=VREnTCTeS4k&itag=140&local=true",
+        src: "https://yt-comp1.chocolatemoo53.com/companion/latest_version?id=VREnTCTeS4k&itag=140&local=true",
         glow: "rgba(139, 92, 246, 0.45)"
       },
       {
@@ -1571,7 +1577,7 @@
         duration: "2:03",
         durationSec: 123,
         cover: "icons/cover3.jpg",
-        src: "https://yt.chocolatemoo53.com/latest_version?id=ez6VNqyT8VE&itag=140&local=true",
+        src: "https://yt-comp1.chocolatemoo53.com/companion/latest_version?id=ez6VNqyT8VE&itag=140&local=true",
         glow: "rgba(16, 185, 129, 0.45)"
       },
       {
@@ -1581,7 +1587,7 @@
         duration: "4:46",
         durationSec: 286,
         cover: "icons/cover4.jpg",
-        src: "https://yt.chocolatemoo53.com/latest_version?id=_GOZDXq7I-I&itag=140&local=true",
+        src: "https://yt-comp1.chocolatemoo53.com/companion/latest_version?id=_GOZDXq7I-I&itag=140&local=true",
         glow: "rgba(59, 130, 246, 0.45)"
       },
       {
@@ -1591,7 +1597,7 @@
         duration: "3:39",
         durationSec: 219,
         cover: "icons/cover5.jpg",
-        src: "https://yt.chocolatemoo53.com/latest_version?id=DUT5rEU6pqM&itag=140&local=true",
+        src: "https://yt-comp1.chocolatemoo53.com/companion/latest_version?id=DUT5rEU6pqM&itag=140&local=true",
         glow: "rgba(236, 72, 153, 0.45)"
       }
     ];
@@ -1799,10 +1805,6 @@
         audioEl.removeEventListener('canplay', onCanPlay);
         audioEl.play().catch(() => {});
       }, 8000);
-    }
-
-      // UI anında güncelle (async stream resolve beklenmez)
-      _updateTrackUI(track);
     }
 
     function _updateTrackUI(track) {
@@ -2231,40 +2233,60 @@
 
     // --- DOWNLOAD ---
     async function triggerDownload(id) {
-      const track = activePlaylist.find(t => t.id === id)
-                 || CURATED_FEED.find(t => t.id === id);
-      if (!track) return;
+        const track = activePlaylist.find(t => t.id === id)
+                   || CURATED_FEED.find(t => t.id === id);
+        if (!track) return;
 
-      // Zaten indirilmişse tekrar indirme
-      if (downloadedTrackIds.has(id)) {
-        notify(`"${track.title}" zaten cihazda kayıtlı ✅`);
-        return;
-      }
-
-      notify(`"${track.title}" indiriliyor... ⏳ (birkaç dakika sürebilir)`);
-      try {
-        // Taze stream URL al (chocolatemoo53 hardcode değil, fallback destekli)
-        const streamUrl = await getStreamUrl(track.id);
-        const res = await fetch(streamUrl);
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const blob = await res.blob();
-
-        // Blob tipi kontrolü - audio olmalı
-        if (!blob.type.startsWith('audio') && blob.size < 10000) {
-          throw new Error(`Geçersiz ses dosyası (tip: ${blob.type}, boyut: ${blob.size})`);
+        if (downloadedTrackIds.has(id)) {
+          notify(`"${track.title}" zaten cihazda kayıtlı ✅`);
+          return;
         }
 
-        await dbSaveOfflineTrack(track, blob);
-        downloadedTrackIds.add(track.id);
-        const mb = (blob.size / 1024 / 1024).toFixed(1);
-        notify(`"${track.title}" kaydedildi! (${mb} MB) 📥 — İnternetsiz dinleyebilirsiniz`);
-        renderHomeFeed();
-        renderDownloadsView();
-      } catch(e) {
-        console.error("Download error:", e);
-        notify(`İndirme başarısız: ${e.message}. Tekrar deneyin.`);
+        notify(`"${track.title}" indiriliyor... ⏳`);
+
+        const cleanId = String(track.id).replace(/^(yt-|ankara-|turkce-pop-|akustik-)/, '');
+        const candidates = [
+          `https://yt-comp1.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`,
+          `https://yt-comp2.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`,
+          `https://yt-comp3.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`
+        ];
+
+        let blob = null;
+        for (const url of candidates) {
+          try {
+            const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+            if (res.ok) {
+              const b = await res.blob();
+              if (b && b.size > 10000) {
+                blob = b;
+                break;
+              }
+            }
+          } catch(e) {
+            console.warn("Companion fetch error:", e);
+          }
+        }
+
+        if (blob) {
+          await dbSaveOfflineTrack(track, blob);
+          downloadedTrackIds.add(track.id);
+          const mb = (blob.size / (1024 * 1024)).toFixed(1);
+          notify(`"${track.title}" kaydedildi! (${mb} MB) 📥 — İnternetsiz dinleyebilirsiniz`);
+          renderHomeFeed();
+          renderDownloadsView();
+        } else {
+          // Doğrudan Safari indirme yöneticisi (CORS kısıtlamasız yerel indirme)
+          const directUrl = candidates[0];
+          const a = document.createElement('a');
+          a.href = directUrl;
+          const safeName = (track.artist + " - " + track.title).replace(/[/\\?%*:|"<>]/g, '_');
+          a.download = `${safeName}.m4a`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          notify(`"${track.title}" Safari İndirilenler klasörüne yönlendirildi! 📁`);
+        }
       }
-    }
 
     function downloadActiveTrack() {
       const current = activePlaylist[activeTrackIndex];
@@ -2273,36 +2295,58 @@
 
     // iPhone "Dosyalar" (Files) uygulamasına dışa aktar (.mp3/.wav olarak indir)
     async function exportActiveTrackToFiles() {
-      const current = activePlaylist[activeTrackIndex];
-      if (!current) return;
-      notify(`"${current.title}" iPhone Dosyalar'a hazırlanıyor...`);
+        const current = activePlaylist[activeTrackIndex];
+        if (!current) return;
+        notify(`"${current.title}" iPhone Dosyalar'a aktarılıyor... ⏳`);
 
-      const downloads = await dbGetAllDownloads();
-      const dl = downloads.find(d => d.id === current.id);
-      let blob = dl ? dl.blob : null;
+        const downloads = await dbGetAllDownloads();
+        const dl = downloads.find(d => d.id === current.id);
+        let blob = dl ? dl.blob : null;
+        const safeName = (current.artist + " - " + current.title).replace(/[/\\?%*:|"<>]/g, '_');
 
-      if (!blob) {
-        try {
-          const exportUrl = await getStreamUrl(current.id);
-          const res = await fetch(exportUrl);
-          blob = await res.blob();
-        } catch(e) {
-          notify("Dosya alınamadı.");
-          return;
+        if (!blob) {
+          const cleanId = String(current.id).replace(/^(yt-|ankara-|turkce-pop-|akustik-)/, '');
+          const candidates = [
+            `https://yt-comp1.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`,
+            `https://yt-comp2.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`,
+            `https://yt-comp3.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`
+          ];
+          for (const url of candidates) {
+            try {
+              const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+              if (res.ok) {
+                const b = await res.blob();
+                if (b && b.size > 10000) {
+                  blob = b;
+                  break;
+                }
+              }
+            } catch(e) {}
+          }
+        }
+
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${safeName}.m4a`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 10000);
+          notify("iPhone Dosyalar (İndirilenler) klasörüne aktarıldı! 📁");
+        } else {
+          const cleanId = String(current.id).replace(/^(yt-|ankara-|turkce-pop-|akustik-)/, '');
+          const directUrl = `https://yt-comp1.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`;
+          const a = document.createElement('a');
+          a.href = directUrl;
+          a.download = `${safeName}.m4a`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          notify("Safari indirme yöneticisi başlatıldı! 📁");
         }
       }
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const safeName = (current.artist + " - " + current.title).replace(/[/\\?%*:|"<>]/g, '_');
-      a.download = `${safeName}.wav`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-      notify("iPhone Dosyalar (İndirilenler) klasörüne aktarıldı! 📁");
-    }
 
     // iPhone "Dosyalar" uygulamasından şarkı yükle
     async function importLocalAudioFiles(e) {
