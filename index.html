@@ -993,7 +993,7 @@
       <div class="header-brand">
         <span class="app-name">Müzik</span>
         <div class="badge-wrap">
-          <span class="ver-badge">v0.7.6 iOS</span>
+          <span class="ver-badge" onclick="openDebugPanel()" style="cursor:pointer" title="Hata ayıklama">v0.7.7 iOS</span>
           <span class="device-badge">iPhone 13 Edition</span>
         </div>
       </div>
@@ -1011,7 +1011,7 @@
     <div class="tab-content active" id="tabHome">
       <div class="title-row">
         <span class="title-text">Günün Önerileri</span>
-        <span class="title-sub">0.7.6 Live</span>
+        <span class="title-sub">0.7.7 Live</span>
       </div>
       <div class="track-list" id="homeFeedList"></div>
 
@@ -1370,6 +1370,87 @@
   <audio id="bufferAudio" preload="auto" playsinline webkit-playsinline></audio>
 
   <script>
+    // --- HATA AYIKLAMA KAYDI (son 500 satır, localStorage'da saklanır) ---
+    const APP_VERSION = '0.7.7';
+    const DBG_KEY = 'muzikDebugLog';
+    const DBG_MAX = 500;
+    let DBG_LINES = [];
+    try { DBG_LINES = JSON.parse(localStorage.getItem(DBG_KEY) || '[]'); } catch(e) { DBG_LINES = []; }
+    let _dbgSaveTimer = null;
+    function dbg(tag, msg) {
+      const d = new Date();
+      const ts = d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0');
+      let text;
+      try { text = typeof msg === 'string' ? msg : JSON.stringify(msg); } catch(e) { text = String(msg); }
+      DBG_LINES.push(`${d.toISOString().slice(5,10)} ${ts} [${tag}] ${text}`);
+      if (DBG_LINES.length > DBG_MAX) DBG_LINES.splice(0, DBG_LINES.length - DBG_MAX);
+      clearTimeout(_dbgSaveTimer);
+      _dbgSaveTimer = setTimeout(() => { try { localStorage.setItem(DBG_KEY, JSON.stringify(DBG_LINES)); } catch(e) {} }, 400);
+      const panel = document.getElementById('dbgLogBox');
+      if (panel && panel.offsetParent) panel.textContent = DBG_LINES.join('\n');
+    }
+    window.addEventListener('error', e => dbg('HATA', `${e.message} @${(e.filename||'').split('/').pop()}:${e.lineno}`));
+    window.addEventListener('unhandledrejection', e => dbg('HATA', 'Promise: ' + (e.reason && (e.reason.message || e.reason))));
+    ['error', 'warn'].forEach(k => {
+      const orig = console[k].bind(console);
+      console[k] = (...a) => { try { dbg(k === 'error' ? 'C.ERR' : 'C.WARN', a.map(x => x instanceof Error ? x.message : (typeof x === 'object' ? JSON.stringify(x) : String(x))).join(' ').slice(0, 300)); } catch(e) {} orig(...a); };
+    });
+    // Tüm ağ isteklerini kaydet (sunucu, durum, süre)
+    const _origFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : (input && input.url) || '';
+      let short = url;
+      try { const u = new URL(url, location.href); short = u.host + u.pathname.slice(0, 40) + (u.searchParams.get('q') ? ' q=' + u.searchParams.get('q') : '') + (u.searchParams.get('id') ? ' id=' + u.searchParams.get('id') : ''); } catch(e) {}
+      const t0 = performance.now();
+      try {
+        const r = await _origFetch(input, init);
+        dbg('NET', `${short} → ${r.status} ${Math.round(performance.now() - t0)}ms`);
+        return r;
+      } catch(e) {
+        dbg('NET', `${short} → HATA ${e.name} ${Math.round(performance.now() - t0)}ms`);
+        throw e;
+      }
+    };
+    dbg('BAŞLAT', `v${APP_VERSION} | ana ekran: ${isStandalone() ? 'evet' : 'hayır'} | UA: ${navigator.userAgent}`);
+    function isStandalone() {
+      return !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches));
+    }
+    async function storageSummary() {
+      const out = { persisted: null, usedMB: null, quotaMB: null };
+      try { if (navigator.storage && navigator.storage.persisted) out.persisted = await navigator.storage.persisted(); } catch(e) {}
+      try { if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); out.usedMB = (e.usage / 1048576).toFixed(1); out.quotaMB = (e.quota / 1048576).toFixed(0); } } catch(e) {}
+      return out;
+    }
+    async function openDebugPanel() {
+      const m = document.getElementById('dbgPanel');
+      m.style.display = 'flex';
+      const st = await storageSummary();
+      let count = '?';
+      try { count = (await dbGetAllDownloads()).length; } catch(e) {}
+      let sw = 'yok';
+      try { if (navigator.serviceWorker && navigator.serviceWorker.controller) sw = 'aktif'; } catch(e) {}
+      document.getElementById('dbgSummary').innerHTML =
+        `Sürüm: <b>${APP_VERSION}</b><br>Ana ekranda mı: <b>${isStandalone() ? 'Evet' : 'Hayır (Safari sekmesi)'}</b><br>` +
+        `Kalıcı depolama: <b>${st.persisted === null ? 'bilinmiyor' : (st.persisted ? 'Evet' : 'Hayır')}</b><br>` +
+        `Kullanılan alan: <b>${st.usedMB ?? '?'} MB</b> / ${st.quotaMB ?? '?'} MB<br>Kayıtlı şarkı: <b>${count}</b><br>Service worker: <b>${sw}</b>`;
+      dbg('PANEL', `persisted=${st.persisted} used=${st.usedMB}MB quota=${st.quotaMB}MB kayıtlı=${count}`);
+      document.getElementById('dbgLogBox').textContent = DBG_LINES.join('\n');
+    }
+    function closeDebugPanel() { document.getElementById('dbgPanel').style.display = 'none'; }
+    async function copyDebugLog() {
+      const summary = document.getElementById('dbgSummary').innerText;
+      const text = summary + '\n\n' + DBG_LINES.join('\n');
+      try { await navigator.clipboard.writeText(text); notify('Kayıt kopyalandı 📋'); return; } catch(e) {}
+      const box = document.getElementById('dbgLogBox');
+      const r = document.createRange(); r.selectNodeContents(box);
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      notify('Metin seçildi, Kopyala\'ya bas');
+    }
+    function clearDebugLog() {
+      DBG_LINES = []; try { localStorage.removeItem(DBG_KEY); } catch(e) {}
+      document.getElementById('dbgLogBox').textContent = '';
+      dbg('PANEL', 'kayıt temizlendi');
+    }
     // --- INDEXEDDB (OFFLINE DEPOLAMA & LİSTELER) ---
     const DB_NAME = 'MuzikStoreDB';
     const DB_VER = 2;
@@ -1846,6 +1927,7 @@
       if (!track || activePlaylist[activeTrackIndex] !== track) return;
       const seq = _playSeq;
       _streamAttempt++;
+      dbg('YEDEK', `sunucu değiştiriliyor, deneme ${_streamAttempt + 1}/${COMPANION_ORDER.length}`);
       if (_streamAttempt >= COMPANION_ORDER.length) {
         notify("Parça şu an yüklenemedi, sonra tekrar dene");
         setPlaybackStatus(false);
@@ -1859,6 +1941,7 @@
 
     function _doPlay(audioEl, url, track, seq, resumeAt = 0) {
       audioEl.pause();
+      if (audioEl === audio) dbg('SES', `kaynak: ${url.startsWith('blob:') ? 'cihaz (kayıtlı dosya)' : (url.match(/yt-comp\d/) || [url.slice(0,50)])[0]} "${(track && track.title || '').slice(0,40)}"`);
       audioEl.src = url;
       audioEl.load();
 
@@ -1976,6 +2059,9 @@
       syncPosition();
     });
 
+    const _srcHost = (el) => { try { const u = new URL(el.currentSrc || el.src); return u.protocol === 'blob:' ? 'cihaz (kayıtlı)' : u.host; } catch(e) { return '?'; } };
+    ['loadstart','canplay','playing','stalled','waiting','ended'].forEach(ev => audio.addEventListener(ev, () => dbg('SES', `${ev} ${_srcHost(audio)} t=${audio.currentTime.toFixed(1)}`)));
+    audio.addEventListener('error', () => { const e = audio.error; dbg('SES', `error kod=${e ? e.code : '?'} (${e ? (['','iptal','ağ','çözme','desteklenmiyor'][e.code] || '') : ''}) ${e && e.message ? e.message : ''} ${_srcHost(audio)}`); });
     audio.addEventListener('playing', () => setPlaybackStatus(true));
     audio.addEventListener('pause', () => setPlaybackStatus(false));
     audio.addEventListener('ended', () => nextTrack());
@@ -2334,6 +2420,7 @@
       if (!isRealYtId(cleanId)) return null;
       for (const i of COMPANION_ORDER) {
         const b = await fetchBlobWithStall(buildStreamUrl(cleanId, COMPANION_INSTANCES[i]));
+        dbg('İNDİR', `${COMPANION_INSTANCES[i].replace('https://','')} → ${b ? (b.size/1048576).toFixed(2) + ' MB ' + b.type : 'başarısız'}`);
         if (b && b.size > 10000) return b;
       }
       return null;
@@ -2369,12 +2456,15 @@
         _downloadsInFlight.add(id);
 
         notify(`"${track.title}" indiriliyor... ⏳`);
+        dbg('İNDİR', `başladı: ${track.id} "${(track.title||'').slice(0,40)}"`);
         try {
           const [blob, coverData] = await Promise.all([fetchTrackAudio(track), fetchCoverDataUrl(track)]);
           if (blob) {
             const toSave = { ...track };
             if (coverData) toSave.cover = coverData;
             await dbSaveOfflineTrack(toSave, blob);
+            const back = await dbGetTrack(track.id);
+            dbg('İNDİR', back && back.blob ? `IndexedDB yazıldı ✔ okunan=${back.blob.size} beklenen=${blob.size} ${back.blob.size === blob.size ? 'EŞİT' : 'FARKLI!'}` : 'IndexedDB YAZILAMADI ✘');
             downloadedTrackIds.add(track.id);
             const mb = (blob.size / (1024 * 1024)).toFixed(1);
             notify(`"${track.title}" kaydedildi! (${mb} MB) 📥 — İnternetsiz dinleyebilirsiniz`);
@@ -2382,6 +2472,7 @@
             renderDownloadsView();
           } else {
             notify(`"${track.title}" indirilemedi, sonra tekrar dene`);
+            dbg('İNDİR', `BAŞARISIZ: ${track.id}`);
           }
         } finally {
           _downloadsInFlight.delete(id);
@@ -2541,6 +2632,7 @@
       }
 
       document.getElementById('searchHeaderCount').textContent = `${combined.length} parça`;
+      dbg('ARAMA', `"${val}" → yerel ${localMatches.length}, YouTube ${ytMatches.length}`);
       listEl.innerHTML = '';
       if (combined.length === 0) {
         listEl.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 35px;">Sonuç bulunamadı. Bağlantınızı kontrol edin.</div>`;
@@ -2709,7 +2801,7 @@
 
     if (navigator.storage && navigator.storage.persist) {
       navigator.storage.persisted().then(already => already ? true : navigator.storage.persist())
-        .then(granted => { window.__storagePersisted = !!granted; console.log('Storage persist:', granted); })
+        .then(granted => { window.__storagePersisted = !!granted; dbg('DEPO', `persist sonucu: ${granted}`); storageSummary().then(x => dbg('DEPO', `kullanılan ${x.usedMB} MB / kota ${x.quotaMB} MB`)); })
         .catch(() => { window.__storagePersisted = false; });
     }
 
@@ -2724,9 +2816,28 @@
     // Service Worker v6
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(err => console.warn(err));
+        navigator.serviceWorker.register('sw.js').then(reg => {
+          dbg('SW', `kayıtlı, kontrol: ${navigator.serviceWorker.controller ? 'var' : 'yok'}`);
+          reg.addEventListener('updatefound', () => {
+            dbg('SW', 'yeni sürüm bulundu, kuruluyor');
+            const w = reg.installing; if (w) w.addEventListener('statechange', () => dbg('SW', 'durum: ' + w.state));
+          });
+        }).catch(err => console.warn('SW kayıt hatası', err));
+        navigator.serviceWorker.addEventListener('controllerchange', () => dbg('SW', 'yeni sürüm devreye girdi'));
+        navigator.serviceWorker.addEventListener('message', e => dbg('SW', 'mesaj: ' + JSON.stringify(e.data)));
+        navigator.serviceWorker.ready.then(r => r.active && r.active.postMessage('version'));
       });
     }
   </script>
+  <div id="dbgPanel" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.92);color:#eee;flex-direction:column;padding:calc(env(safe-area-inset-top) + 10px) 10px 10px;font-size:12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <b style="font-size:16px;flex:1">Hata ayıklama</b>
+      <button type="button" onclick="copyDebugLog()" style="padding:8px 12px;border-radius:8px;border:0;background:#3b82f6;color:#fff">Kopyala</button>
+      <button type="button" onclick="clearDebugLog()" style="padding:8px 12px;border-radius:8px;border:0;background:#444;color:#fff">Temizle</button>
+      <button type="button" onclick="closeDebugPanel()" style="padding:8px 12px;border-radius:8px;border:0;background:#ef4444;color:#fff">Kapat</button>
+    </div>
+    <div id="dbgSummary" style="background:#1f2937;border-radius:8px;padding:8px;margin-bottom:8px;line-height:1.5"></div>
+    <pre id="dbgLogBox" style="flex:1;overflow:auto;margin:0;background:#111;border-radius:8px;padding:8px;white-space:pre-wrap;word-break:break-all;font-size:10.5px;-webkit-user-select:text;user-select:text"></pre>
+  </div>
 </body>
 </html>

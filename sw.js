@@ -1,4 +1,4 @@
-const CACHE_NAME = 'muzik-pwa-v17';
+const CACHE_NAME = 'muzik-pwa-v18';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -68,4 +68,8 @@ self.addEventListener('fetch', (event) => {
       return fetch(event.request);
     })
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data === 'version' && event.source) event.source.postMessage({ sw: CACHE_NAME });
 });
