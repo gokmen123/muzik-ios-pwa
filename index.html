@@ -993,7 +993,7 @@
       <div class="header-brand">
         <span class="app-name">Müzik</span>
         <div class="badge-wrap">
-          <span class="ver-badge">v0.7.5 iOS</span>
+          <span class="ver-badge">v0.7.6 iOS</span>
           <span class="device-badge">iPhone 13 Edition</span>
         </div>
       </div>
@@ -1011,7 +1011,7 @@
     <div class="tab-content active" id="tabHome">
       <div class="title-row">
         <span class="title-text">Günün Önerileri</span>
-        <span class="title-sub">0.7.5 Live</span>
+        <span class="title-sub">0.7.6 Live</span>
       </div>
       <div class="track-list" id="homeFeedList"></div>
 
@@ -1445,6 +1445,17 @@
       });
     }
 
+    async function dbGetTrack(id) {
+      return new Promise((resolve) => {
+        if (!db || !db.objectStoreNames || !db.objectStoreNames.contains('downloads')) return resolve(null);
+        try {
+          const req = db.transaction('downloads', 'readonly').objectStore('downloads').get(id);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        } catch(e) { resolve(null); }
+      });
+    }
+
     async function dbToggleFav(track) {
       return new Promise((resolve) => {
         if (!db || !db.objectStoreNames || !db.objectStoreNames.contains('favorites')) return resolve(false);
@@ -1527,7 +1538,7 @@
       if (_cachedInstance) return _cachedInstance;
       for (const inst of INVIDIOUS_INSTANCES) {
         try {
-          const r = await fetch(`${inst}/api/v1/stats`, { signal: AbortSignal.timeout(3000) });
+          const r = await fetch(`${inst}/api/v1/stats`, { signal: AbortSignal.timeout(4000) });
           if (r.ok) { _cachedInstance = inst; return inst; }
         } catch {}
       }
@@ -1540,13 +1551,57 @@
         "https://yt-comp3.chocolatemoo53.com"
       ];
 
-      function buildStreamUrl(videoId, host = "https://yt-comp1.chocolatemoo53.com") {
+      function cleanVideoId(videoId) {
+        return String(videoId).replace(/^(yt-|ankara-|turkce-pop-|akustik-)/, '');
+      }
+      function isRealYtId(id) { return /^[A-Za-z0-9_-]{11}$/.test(cleanVideoId(id)); }
+      function escHtml(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      }
+      // Ekranda gösterilen her şarkı burada tutulur (indirme butonu her listeden çalışsın)
+      const TRACK_REGISTRY = new Map();
+      function registerTrack(t) { if (t && t.id) TRACK_REGISTRY.set(t.id, t); }
+
+      // Akış durursa (stallMs boyunca hiç veri gelmezse) iptal eden indirme; toplam süre sınırı yok
+      async function fetchBlobWithStall(url, stallMs = 15000) {
+        const ctrl = new AbortController();
+        let timer = setTimeout(() => ctrl.abort(), stallMs);
+        const bump = () => { clearTimeout(timer); timer = setTimeout(() => ctrl.abort(), stallMs); };
+        try {
+          const res = await fetch(url, { signal: ctrl.signal });
+          if (!res.ok) return null;
+          const type = res.headers.get('content-type') || 'audio/mp4';
+          if (type.includes('text/html')) return null;
+          if (!res.body || !res.body.getReader) { const b = await res.blob(); return b; }
+          const reader = res.body.getReader();
+          const chunks = [];
+          bump();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            bump();
+          }
+          return new Blob(chunks, { type: type.split(';')[0] });
+        } catch (e) {
+          console.warn('Download fetch error:', url, e);
+          return null;
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+
+      function buildStreamUrl(videoId, host = COMPANION_INSTANCES[0]) {
+        if (!COMPANION_INSTANCES.includes(host)) host = COMPANION_INSTANCES[0];
         const cleanId = String(videoId).replace(/^(yt-|ankara-|turkce-pop-|akustik-)/, '');
         return `${host}/companion/latest_version?id=${cleanId}&itag=140&local=true`;
       }
 
-      async function getStreamUrl(videoId) {
-        return buildStreamUrl(videoId, "https://yt-comp1.chocolatemoo53.com");
+      // Sırayla denenecek ses sunucuları: comp1 → comp3 → comp2
+      const COMPANION_ORDER = [0, 2, 1];
+      async function getStreamUrl(videoId, attempt = 0) {
+        const idx = COMPANION_ORDER[attempt % COMPANION_ORDER.length];
+        return buildStreamUrl(videoId, COMPANION_INSTANCES[idx]);
       }
 
         const CURATED_FEED = [
@@ -1657,6 +1712,7 @@
       if (!('mediaSession' in navigator)) return;
 
       const fullArtUrl = new URL(track.cover, window.location.href).href;
+      const artType = /\.png(\?|$)/i.test(fullArtUrl) ? 'image/png' : (fullArtUrl.startsWith('data:') ? (fullArtUrl.slice(5).split(';')[0] || 'image/jpeg') : 'image/jpeg');
 
       // iOS Safari önbellek için resmi belleğe al
       const img = new Image();
@@ -1667,8 +1723,8 @@
         artist: track.artist,
         album: "Müzik · YouTube Music",
         artwork: [
-          { src: fullArtUrl, sizes: '512x512', type: 'image/png' },
-          { src: fullArtUrl, sizes: '192x192', type: 'image/png' }
+          { src: fullArtUrl, sizes: '512x512', type: artType },
+          { src: fullArtUrl, sizes: '192x192', type: artType }
         ]
       });
 
@@ -1738,44 +1794,70 @@
     // --- PLAYBACK ENGINE ---
     let _playSeq = 0; // Her yeni track için artar; stale callback'leri iptal eder
 
+    let _streamAttempt = 0;
+    let _currentStreamTrack = null;
+
     function playTrackAt(index, queue = null) {
       if (queue) activePlaylist = queue;
       if (index < 0 || index >= activePlaylist.length) return;
       activeTrackIndex = index;
       const track = activePlaylist[activeTrackIndex];
       const seq = ++_playSeq;
+      _streamAttempt = 0;
+      _currentStreamTrack = null;
 
       if (currentObjectBlobUrl) {
         URL.revokeObjectURL(currentObjectBlobUrl);
         currentObjectBlobUrl = null;
       }
 
-      // Blob (indirilen) varsa hemen oyna
-      if (track.blob) {
-        currentObjectBlobUrl = URL.createObjectURL(track.blob);
-        _doPlay(audio, currentObjectBlobUrl, track, seq);
-        return;
-      }
-
-      // Canlı stream: önce UI'yi güncelle, sonra URL'yi çöz
       _updateTrackUI(track);
-      notify("⏳ Yükleniyor...", 2500);
 
       (async () => {
-        let url = track.src;
-        // src yoksa veya stale default URL ise instance'tan taze al
-        if (!url || url.includes("chocolatemoo53") === false) {
-          // src varsa kullan, yoksa id'den üret
-          if (track.id) {
-            url = await getStreamUrl(track.id);
-          }
+        // Cihazda kayıtlıysa (hangi listeden açılırsa açılsın) kayıtlı dosyayı çal
+        let blob = track.blob || null;
+        if (!blob && downloadedTrackIds.has(track.id)) {
+          const dl = await dbGetTrack(track.id);
+          if (dl && dl.blob) blob = dl.blob;
         }
-        if (seq !== _playSeq) return; // Kullanıcı farklı şarkıya geçti
+        if (seq !== _playSeq) return;
+        if (blob) {
+          currentObjectBlobUrl = URL.createObjectURL(blob);
+          _doPlay(audio, currentObjectBlobUrl, track, seq);
+          return;
+        }
+        // Canlı akış: adresi her zaman ses sunucusundan (companion) üret
+        if (!track.id || !isRealYtId(track.id)) {
+          if (track.src) { _doPlay(audio, track.src, track, seq); return; }
+          notify("Bu parça çalınamıyor");
+          return;
+        }
+        notify("⏳ Yükleniyor...");
+        _currentStreamTrack = track;
+        const url = await getStreamUrl(track.id, 0);
+        if (seq !== _playSeq) return;
         _doPlay(audio, url, track, seq);
       })();
     }
 
-    function _doPlay(audioEl, url, track, seq) {
+    // Ses sunucusu hata verirse sessizce sıradaki sunucuyu dene
+    audio.addEventListener('error', async () => {
+      const track = _currentStreamTrack;
+      if (!track || activePlaylist[activeTrackIndex] !== track) return;
+      const seq = _playSeq;
+      _streamAttempt++;
+      if (_streamAttempt >= COMPANION_ORDER.length) {
+        notify("Parça şu an yüklenemedi, sonra tekrar dene");
+        setPlaybackStatus(false);
+        return;
+      }
+      const resumeAt = audio.currentTime || 0;
+      const url = await getStreamUrl(track.id, _streamAttempt);
+      if (seq !== _playSeq) return;
+      _doPlay(audio, url, track, seq, resumeAt);
+    });
+
+    function _doPlay(audioEl, url, track, seq, resumeAt = 0) {
       audioEl.pause();
       audioEl.src = url;
       audioEl.load();
@@ -1785,6 +1867,7 @@
         if (seq !== _playSeq) return;
         audioEl.removeEventListener('canplay', onCanPlay);
         clearTimeout(playTimeout);
+        if (resumeAt > 1) { try { audioEl.currentTime = resumeAt; } catch(e) {} }
         const p = audioEl.play();
         if (p) p.then(() => {
           setPlaybackStatus(true);
@@ -1838,9 +1921,8 @@
       const next = activePlaylist[nextIdx];
       if (!next) return;
       (async () => {
-        let url = next.blob
-          ? URL.createObjectURL(next.blob)
-          : (next.src || (next.id ? await getStreamUrl(next.id) : null));
+        if (next.blob || downloadedTrackIds.has(next.id)) return; // kayıtlıysa önceden yüklemeye gerek yok
+        const url = (next.id && isRealYtId(next.id)) ? await getStreamUrl(next.id) : next.src;
         if (!url) return;
         buffer.src = url;
         buffer.load();
@@ -1997,16 +2079,8 @@
         const tabId = btn.getAttribute('data-tab');
         if (!tabId) return;
 
-        btn.addEventListener('touchstart', (e) => {
-          e.stopPropagation();
-          switchNavTab(tabId, btn);
-        }, { passive: true });
-
-        btn.addEventListener('pointerdown', (e) => {
-          e.stopPropagation();
-          switchNavTab(tabId, btn);
-        });
-
+        if (btn.dataset.navBound) return;
+        btn.dataset.navBound = '1';
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           switchNavTab(tabId, btn);
@@ -2017,22 +2091,24 @@
     // --- RENDER CARD ROWS ---
     function createRow(track, list = activePlaylist) {
       const isDl = downloadedTrackIds.has(track.id) || Boolean(track.blob);
+      registerTrack(track);
       const item = document.createElement('div');
+      item.dataset.trackId = track.id;
       item.className = 'track-item' + (activePlaylist[activeTrackIndex]?.id === track.id ? ' active' : '');
       item.setAttribute('role', 'button');
       item.setAttribute('tabindex', '0');
       item.style.cursor = 'pointer';
       item.innerHTML = `
-        <img src="${track.cover}" class="track-cover-img" alt="cover">
+        <img src="${escHtml(track.cover)}" class="track-cover-img" alt="cover">
         <div class="track-text-box">
-          <div class="track-primary-title">${track.title}</div>
+          <div class="track-primary-title">${escHtml(track.title)}</div>
           <div class="track-secondary-info">
-            ${track.artist} · ${track.duration || ""}
+            ${escHtml(track.artist)} · ${escHtml(track.duration || "")}
             ${isDl ? '<span style="color: var(--success); font-weight: 700; margin-left: 5px;">● Çevrimdışı</span>' : ''}
           </div>
         </div>
         <div class="track-actions-box">
-          <button type="button" class="btn-track-action ${isDl ? 'downloaded' : ''}" onclick="event.stopPropagation(); triggerDownload('${track.id}')" title="${isDl ? 'İndirildi (Cihazda Kayıtlı)' : 'İndir'}">
+          <button type="button" class="btn-track-action ${isDl ? 'downloaded' : ''}" data-dl="1" title="${isDl ? 'İndirildi (Cihazda Kayıtlı)' : 'İndir'}">
             ${isDl ? `
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <polyline points="20 6 9 17 4 12"></polyline>
@@ -2059,12 +2135,14 @@
       };
 
       item.addEventListener('click', selectTrack);
-      item.addEventListener('touchend', selectTrack, { passive: true });
+      const dlBtn = item.querySelector('[data-dl]');
+      if (dlBtn) dlBtn.addEventListener('click', (e) => { e.stopPropagation(); triggerDownload(track.id, track); });
       return item;
     }
 
     function highlightPlayingCard() {
-      document.querySelectorAll('.track-item').forEach(c => c.classList.remove('active'));
+      const curId = activePlaylist[activeTrackIndex]?.id;
+      document.querySelectorAll('.track-item').forEach(c => c.classList.toggle('active', !!curId && c.dataset.trackId === curId));
     }
 
     function renderHomeFeed() {
@@ -2096,7 +2174,7 @@
               duration: timeFormat(v.lengthSeconds || 0),
               durationSec: v.lengthSeconds || 0,
               cover: `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
-              src: buildStreamUrl(v.videoId, inst),
+              src: buildStreamUrl(v.videoId),
               glow: "rgba(239, 68, 68, 0.35)"
             }));
             // Daha önce listede olmayan önerileri ekle
@@ -2181,18 +2259,22 @@
           <div class="lib-card-subtitle" id="downloadLibCount">0 parça</div>
         </div>
       `;
-      let extraCards = '';
+      grid.innerHTML = baseCards;
       playlists.forEach(pl => {
-        extraCards += `
-          <div class="lib-card" onclick="openCustomPlaylist('${pl.name}')">
-            <div class="lib-card-title">🎵 ${pl.name}</div>
-            <div class="lib-card-subtitle">${pl.tracks?.length || 0} parça</div>
-          </div>
-        `;
+        const card = document.createElement('div');
+        card.className = 'lib-card';
+        card.innerHTML = `<div class="lib-card-title">🎵 ${escHtml(pl.name)}</div><div class="lib-card-subtitle">${pl.tracks?.length || 0} parça</div>`;
+        card.addEventListener('click', () => openCustomPlaylist(pl.name));
+        grid.appendChild(card);
       });
-      grid.innerHTML = baseCards + extraCards;
-
-      openPlaylistView('Favoriler');
+      refreshDownloadedIds();
+      // Açık olan listeyi koru (her seferinde Favoriler'e dönme)
+      const curName = document.getElementById('currentViewPlaylistTitle').textContent;
+      if (curName && curName !== 'Favoriler' && curName !== 'Tüm İndirilenler' && playlists.some(p => p.name === curName)) {
+        openCustomPlaylist(curName);
+      } else {
+        openPlaylistView(curName === 'Tüm İndirilenler' ? 'Tüm İndirilenler' : 'Favoriler');
+      }
     }
 
     async function openPlaylistView(name) {
@@ -2247,8 +2329,35 @@
     }
 
     // --- DOWNLOAD ---
-    async function triggerDownload(id) {
-        const track = activePlaylist.find(t => t.id === id)
+    async function fetchTrackAudio(track) {
+      const cleanId = cleanVideoId(track.id);
+      if (!isRealYtId(cleanId)) return null;
+      for (const i of COMPANION_ORDER) {
+        const b = await fetchBlobWithStall(buildStreamUrl(cleanId, COMPANION_INSTANCES[i]));
+        if (b && b.size > 10000) return b;
+      }
+      return null;
+    }
+
+    // Kapağı küçük boyutta (birkaç KB) kaydet ki internetsizken de görünsün
+    async function fetchCoverDataUrl(track) {
+      try {
+        let url = track.cover;
+        if (!url) return null;
+        if (url.startsWith('data:')) return url;
+        if (url.includes('i.ytimg.com')) url = url.replace(/hqdefault|maxresdefault|sddefault/, 'mqdefault');
+        else return null; // yerel ikonlar zaten önbellekte
+        const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) return null;
+        const b = await res.blob();
+        return await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => r(null); fr.readAsDataURL(b); });
+      } catch(e) { return null; }
+    }
+
+    const _downloadsInFlight = new Set();
+    async function triggerDownload(id, trackObj = null) {
+        const track = trackObj || TRACK_REGISTRY.get(id)
+                   || activePlaylist.find(t => t.id === id)
                    || CURATED_FEED.find(t => t.id === id);
         if (!track) return;
 
@@ -2256,111 +2365,68 @@
           notify(`"${track.title}" zaten cihazda kayıtlı ✅`);
           return;
         }
+        if (_downloadsInFlight.has(id)) return;
+        _downloadsInFlight.add(id);
 
         notify(`"${track.title}" indiriliyor... ⏳`);
-
-        const cleanId = String(track.id).replace(/^(yt-|ankara-|turkce-pop-|akustik-)/, '');
-        const candidates = [
-          `https://yt-comp1.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`,
-          `https://yt-comp2.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`,
-          `https://yt-comp3.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`
-        ];
-
-        let blob = null;
-        for (const url of candidates) {
-          try {
-            const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
-            if (res.ok) {
-              const b = await res.blob();
-              if (b && b.size > 10000) {
-                blob = b;
-                break;
-              }
-            }
-          } catch(e) {
-            console.warn("Companion fetch error:", e);
+        try {
+          const [blob, coverData] = await Promise.all([fetchTrackAudio(track), fetchCoverDataUrl(track)]);
+          if (blob) {
+            const toSave = { ...track };
+            if (coverData) toSave.cover = coverData;
+            await dbSaveOfflineTrack(toSave, blob);
+            downloadedTrackIds.add(track.id);
+            const mb = (blob.size / (1024 * 1024)).toFixed(1);
+            notify(`"${track.title}" kaydedildi! (${mb} MB) 📥 — İnternetsiz dinleyebilirsiniz`);
+            renderHomeFeed();
+            renderDownloadsView();
+          } else {
+            notify(`"${track.title}" indirilemedi, sonra tekrar dene`);
           }
-        }
-
-        if (blob) {
-          await dbSaveOfflineTrack(track, blob);
-          downloadedTrackIds.add(track.id);
-          const mb = (blob.size / (1024 * 1024)).toFixed(1);
-          notify(`"${track.title}" kaydedildi! (${mb} MB) 📥 — İnternetsiz dinleyebilirsiniz`);
-          renderHomeFeed();
-          renderDownloadsView();
-        } else {
-          // Doğrudan Safari indirme yöneticisi (CORS kısıtlamasız yerel indirme)
-          const directUrl = candidates[0];
-          const a = document.createElement('a');
-          a.href = directUrl;
-          const safeName = (track.artist + " - " + track.title).replace(/[/\\?%*:|"<>]/g, '_');
-          a.download = `${safeName}.m4a`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          notify(`"${track.title}" Safari İndirilenler klasörüne yönlendirildi! 📁`);
+        } finally {
+          _downloadsInFlight.delete(id);
         }
       }
 
     function downloadActiveTrack() {
       const current = activePlaylist[activeTrackIndex];
-      if (current) triggerDownload(current.id);
+      if (current) triggerDownload(current.id, current);
     }
 
-    // iPhone "Dosyalar" (Files) uygulamasına dışa aktar (.mp3/.wav olarak indir)
+    // iPhone "Dosyalar" (Files) uygulamasına dışa aktar (paylaş menüsü ile)
     async function exportActiveTrackToFiles() {
         const current = activePlaylist[activeTrackIndex];
         if (!current) return;
-        notify(`"${current.title}" iPhone Dosyalar'a aktarılıyor... ⏳`);
+        notify(`"${current.title}" hazırlanıyor... ⏳`);
 
-        const downloads = await dbGetAllDownloads();
-        const dl = downloads.find(d => d.id === current.id);
-        let blob = dl ? dl.blob : null;
+        const dl = await dbGetTrack(current.id);
+        let blob = dl ? dl.blob : (current.blob || null);
         const safeName = (current.artist + " - " + current.title).replace(/[/\\?%*:|"<>]/g, '_');
-
+        if (!blob) blob = await fetchTrackAudio(current);
         if (!blob) {
-          const cleanId = String(current.id).replace(/^(yt-|ankara-|turkce-pop-|akustik-)/, '');
-          const candidates = [
-            `https://yt-comp1.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`,
-            `https://yt-comp2.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`,
-            `https://yt-comp3.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`
-          ];
-          for (const url of candidates) {
-            try {
-              const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-              if (res.ok) {
-                const b = await res.blob();
-                if (b && b.size > 10000) {
-                  blob = b;
-                  break;
-                }
-              }
-            } catch(e) {}
+          notify("Dosya alınamadı, sonra tekrar dene");
+          return;
+        }
+        const ext = (blob.type && blob.type.includes('mpeg')) ? 'mp3' : 'm4a';
+        const file = new File([blob], `${safeName}.${ext}`, { type: blob.type || 'audio/mp4' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file], title: current.title });
+            return;
+          } catch(e) {
+            if (e && e.name === 'AbortError') return;
           }
         }
-
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `${safeName}.m4a`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(url), 10000);
-          notify("iPhone Dosyalar (İndirilenler) klasörüne aktarıldı! 📁");
-        } else {
-          const cleanId = String(current.id).replace(/^(yt-|ankara-|turkce-pop-|akustik-)/, '');
-          const directUrl = `https://yt-comp1.chocolatemoo53.com/companion/latest_version?id=${cleanId}&itag=140&local=true`;
-          const a = document.createElement('a');
-          a.href = directUrl;
-          a.download = `${safeName}.m4a`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          notify("Safari indirme yöneticisi başlatıldı! 📁");
-        }
+        // Paylaş menüsü yoksa: aynı kaynaklı blob adresiyle indir
+        const url = URL.createObjectURL(file);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        notify("Dosya indirildi 📁");
       }
 
     // iPhone "Dosyalar" uygulamasından şarkı yükle
@@ -2446,7 +2512,7 @@
                 duration: timeFormat(sec),
                 durationSec: sec,
                 cover: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
-                src: buildStreamUrl(item.videoId, searchInst),
+                src: buildStreamUrl(item.videoId),
                 glow: "rgba(239, 68, 68, 0.45)"
               };
             });
@@ -2553,45 +2619,34 @@
         playlistId = val.split("list=")[1].split("&")[0];
       }
 
-      // Invidious API ile YouTube listesini çek
+      // Çalışan Invidious sunucusuyla YouTube listesini çek
       try {
-        const res = await fetch(`https://inv.nadeko.net/api/v1/playlists/${playlistId}`);
+        const inst = await getWorkingInstance();
+        const res = await fetch(`${inst}/api/v1/playlists/${encodeURIComponent(playlistId)}`, { signal: AbortSignal.timeout(15000) });
         if (res.ok) {
           const data = await res.json();
-          const importedTracks = (data.videos || []).map(v => ({
+          const importedTracks = (data.videos || []).filter(v => v && v.videoId).map(v => ({
             id: v.videoId,
             title: v.title,
             artist: v.author,
             duration: timeFormat(v.lengthSeconds),
             durationSec: v.lengthSeconds,
             cover: `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
-            src: "audio/track1.wav",
+            src: buildStreamUrl(v.videoId),
             glow: "rgba(139, 92, 246, 0.4)"
           }));
-
-          const plName = data.title || "YouTube İçe Aktarılan";
-          await dbSavePlaylist(plName, importedTracks);
-          notify(`"${plName}" listesi (${importedTracks.length} parça) Kitaplığıma eklendi! 🎉`);
-          renderLibraryView();
-          return;
+          if (importedTracks.length > 0) {
+            const plName = data.title || "YouTube İçe Aktarılan";
+            await dbSavePlaylist(plName, importedTracks);
+            notify(`"${plName}" listesi (${importedTracks.length} parça) Kitaplığıma eklendi! 🎉`);
+            renderLibraryView();
+            return;
+          }
         }
       } catch(e) {
-        console.warn("Public API fallback:", e);
+        console.warn("Playlist import error:", e);
       }
-
-      // Yerel fallback
-      setTimeout(() => {
-        const sampleTracks = [
-          { id: "yt-import-1", title: "YouTube Favori Parça 1", artist: "YouTube Music Sanatçısı", duration: "0:28", cover: "icons/cover1.png", src: "audio/track1.wav" },
-          { id: "yt-import-2", title: "YouTube Favori Parça 2", artist: "Trend Sanatçı", duration: "0:25", cover: "icons/cover2.png", src: "audio/track2.wav" }
-        ];
-        dbSavePlaylist("YouTube Favorilerim", sampleTracks).then(() => {
-          notify("YouTube listesi başarıyla Kitaplığıma eklendi! 🎉");
-          document.getElementById('ytAccountLabel').textContent = "YouTube Bağlı";
-          document.getElementById('headerYtBtn').classList.add('connected');
-          renderLibraryView();
-        });
-      }, 1000);
+      notify("Liste alınamadı. Linki kontrol edip tekrar dene.");
     }
 
     // Hazır seçkileri içe aktar
@@ -2653,14 +2708,15 @@
     initNavTabBar();
 
     if (navigator.storage && navigator.storage.persist) {
-      navigator.storage.persist().catch(() => {});
+      navigator.storage.persisted().then(already => already ? true : navigator.storage.persist())
+        .then(granted => { window.__storagePersisted = !!granted; console.log('Storage persist:', granted); })
+        .catch(() => { window.__storagePersisted = false; });
     }
 
     setupDatabase().then(() => {
       renderHomeFeed();
       renderDownloadsView();
       renderLibraryView();
-      initNavTabBar();
     }).catch(err => {
       console.warn("DB setup error (fallback active):", err);
     });

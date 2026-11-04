@@ -1,4 +1,4 @@
-const CACHE_NAME = 'muzik-pwa-v16';
+const CACHE_NAME = 'muzik-pwa-v17';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -44,7 +44,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for local static assets
+  // Sayfa (index.html) önce ağdan: yeni sürüm hemen gelsin; ağ yoksa önbellekten
+  const isPage = event.request.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
+  if (isPage) {
+    event.respondWith(
+      fetch(event.request).then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put('./index.html', copy));
+        }
+        return res;
+      }).catch(() => caches.match(event.request).then((r) => r || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // Diğer yerel dosyalar: önce önbellek
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
