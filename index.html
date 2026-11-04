@@ -993,7 +993,7 @@
       <div class="header-brand">
         <span class="app-name">Müzik</span>
         <div class="badge-wrap">
-          <span class="ver-badge" onclick="openDebugPanel()" style="cursor:pointer" title="Hata ayıklama">v0.7.7 iOS</span>
+          <span class="ver-badge" onclick="openDebugPanel()" style="cursor:pointer" title="Hata ayıklama">v0.7.8 iOS</span>
           <span class="device-badge">iPhone 13 Edition</span>
         </div>
       </div>
@@ -1011,7 +1011,7 @@
     <div class="tab-content active" id="tabHome">
       <div class="title-row">
         <span class="title-text">Günün Önerileri</span>
-        <span class="title-sub">0.7.7 Live</span>
+        <span class="title-sub">0.7.8 Live</span>
       </div>
       <div class="track-list" id="homeFeedList"></div>
 
@@ -1020,9 +1020,9 @@
         <span class="title-sub">Seçkiler</span>
       </div>
       <div class="playlist-cards-grid">
-        <div class="lib-card" onclick="playGenreCollection('ankara')">
-          <div class="lib-card-title">🪗 Ankara Havası</div>
-          <div class="lib-card-subtitle">Özel Seçki · 12 Parça</div>
+        <div class="lib-card" onclick="openFavYtPlaylist()">
+          <div class="lib-card-title" id="favYtCardTitle">⭐ Favori Listem</div>
+          <div class="lib-card-subtitle" id="favYtCardSub">YouTube Music · yükleniyor...</div>
         </div>
         <div class="lib-card" onclick="playGenreCollection('turkce_pop')">
           <div class="lib-card-title">🔥 Türkçe Pop</div>
@@ -1080,7 +1080,9 @@
 
       <div class="title-row">
         <span class="title-text" id="currentViewPlaylistTitle">Favoriler</span>
+        <button id="dlAllBtn" onclick="downloadAllCurrent()" style="display:none;background:var(--accent,#8b5cf6);color:#fff;border:0;border-radius:14px;padding:6px 12px;font-size:12px;font-weight:600;">⬇ Hepsini indir</button>
       </div>
+      <div id="dlAllStatus" style="display:none;font-size:12px;color:var(--text-sub);padding:0 4px 8px;"></div>
       <div class="track-list" id="libraryTracksList"></div>
     </div>
 
@@ -1325,10 +1327,10 @@
             </div>
             <span>+ Ekle</span>
           </div>
-          <div class="btn-quick-sync" onclick="quickImportCurated('yt_ankara')">
+          <div class="btn-quick-sync" onclick="openFavYtPlaylist()">
             <div>
-              <div style="color: #fff;">🪗 Ankara Oyun Havaları Trend</div>
-              <div style="font-size: 11px; color: var(--text-sub);">Günün Trendleri</div>
+              <div style="color: #fff;" id="favYtPresetTitle">⭐ Favori Listem</div>
+              <div style="font-size: 11px; color: var(--text-sub);">YouTube Music</div>
             </div>
             <span>+ Ekle</span>
           </div>
@@ -1371,7 +1373,7 @@
 
   <script>
     // --- HATA AYIKLAMA KAYDI (son 500 satır, localStorage'da saklanır) ---
-    const APP_VERSION = '0.7.7';
+    const APP_VERSION = '0.7.8';
     const DBG_KEY = 'muzikDebugLog';
     const DBG_MAX = 500;
     let DBG_LINES = [];
@@ -1518,7 +1520,10 @@
         try {
           const tx = db.transaction('downloads', 'readonly');
           const req = tx.objectStore('downloads').getAll();
-          req.onsuccess = () => resolve(req.result || []);
+          req.onsuccess = () => {
+            const seen = new Set();
+            resolve((req.result || []).filter(d => { const k = cleanVideoId(d.id); if (seen.has(k)) return false; seen.add(k); return true; }));
+          };
           req.onerror = () => resolve([]);
         } catch(e) {
           resolve([]);
@@ -1641,7 +1646,7 @@
       }
       // Ekranda gösterilen her şarkı burada tutulur (indirme butonu her listeden çalışsın)
       const TRACK_REGISTRY = new Map();
-      function registerTrack(t) { if (t && t.id) TRACK_REGISTRY.set(t.id, t); }
+      function registerTrack(t) { if (t && t.id) TRACK_REGISTRY.set(t.id, t); return t; }
 
       // Akış durursa (stallMs boyunca hiç veri gelmezse) iptal eden indirme; toplam süre sınırı yok
       async function fetchBlobWithStall(url, stallMs = 15000) {
@@ -2365,6 +2370,7 @@
 
     async function openPlaylistView(name) {
       document.getElementById('currentViewPlaylistTitle').textContent = name;
+      setDlAllTarget(name === 'Favoriler' ? '__fav__' : null);
       const listEl = document.getElementById('libraryTracksList');
       listEl.innerHTML = '';
 
@@ -2405,6 +2411,7 @@
       const pl = playlists.find(p => p.name === name);
       if (!pl) return;
       document.getElementById('currentViewPlaylistTitle').textContent = pl.name;
+      setDlAllTarget(pl.name);
       const listEl = document.getElementById('libraryTracksList');
       listEl.innerHTML = '';
       if (!pl.tracks || pl.tracks.length === 0) {
@@ -2442,20 +2449,23 @@
     }
 
     const _downloadsInFlight = new Set();
-    async function triggerDownload(id, trackObj = null) {
-        const track = trackObj || TRACK_REGISTRY.get(id)
+    async function triggerDownload(id, trackObj = null, opts = {}) {
+        id = cleanVideoId(id) || id;
+        let track = trackObj || TRACK_REGISTRY.get(id)
                    || activePlaylist.find(t => t.id === id)
                    || CURATED_FEED.find(t => t.id === id);
-        if (!track) return;
+        if (!track) return 'yok';
+        track = { ...track, id };
 
-        if (downloadedTrackIds.has(id)) {
-          notify(`"${track.title}" zaten cihazda kayıtlı ✅`);
-          return;
+        if (downloadedTrackIds.has(id) || (await dbGetTrack(id))) {
+          downloadedTrackIds.add(id);
+          if (!opts.quiet) notify(`"${track.title}" zaten cihazda kayıtlı ✅`);
+          return 'var';
         }
-        if (_downloadsInFlight.has(id)) return;
+        if (_downloadsInFlight.has(id)) return 'sürüyor';
         _downloadsInFlight.add(id);
 
-        notify(`"${track.title}" indiriliyor... ⏳`);
+        if (!opts.quiet) notify(`"${track.title}" indiriliyor... ⏳`);
         dbg('İNDİR', `başladı: ${track.id} "${(track.title||'').slice(0,40)}"`);
         try {
           const [blob, coverData] = await Promise.all([fetchTrackAudio(track), fetchCoverDataUrl(track)]);
@@ -2467,13 +2477,18 @@
             dbg('İNDİR', back && back.blob ? `IndexedDB yazıldı ✔ okunan=${back.blob.size} beklenen=${blob.size} ${back.blob.size === blob.size ? 'EŞİT' : 'FARKLI!'}` : 'IndexedDB YAZILAMADI ✘');
             downloadedTrackIds.add(track.id);
             const mb = (blob.size / (1024 * 1024)).toFixed(1);
-            notify(`"${track.title}" kaydedildi! (${mb} MB) 📥 — İnternetsiz dinleyebilirsiniz`);
+            if (!opts.quiet) notify(`"${track.title}" kaydedildi! (${mb} MB) 📥 — İnternetsiz dinleyebilirsiniz`);
             renderHomeFeed();
             renderDownloadsView();
+            return 'ok';
           } else {
-            notify(`"${track.title}" indirilemedi, sonra tekrar dene`);
+            if (!opts.quiet) notify(`"${track.title}" indirilemedi, sonra tekrar dene`);
             dbg('İNDİR', `BAŞARISIZ: ${track.id}`);
+            return 'hata';
           }
+        } catch(e) {
+          dbg('İNDİR', `HATA: ${track.id} ${e && e.message}`);
+          return 'hata';
         } finally {
           _downloadsInFlight.delete(id);
         }
@@ -2711,24 +2726,12 @@
         playlistId = val.split("list=")[1].split("&")[0];
       }
 
-      // Çalışan Invidious sunucusuyla YouTube listesini çek
       try {
-        const inst = await getWorkingInstance();
-        const res = await fetch(`${inst}/api/v1/playlists/${encodeURIComponent(playlistId)}`, { signal: AbortSignal.timeout(15000) });
-        if (res.ok) {
-          const data = await res.json();
-          const importedTracks = (data.videos || []).filter(v => v && v.videoId).map(v => ({
-            id: v.videoId,
-            title: v.title,
-            artist: v.author,
-            duration: timeFormat(v.lengthSeconds),
-            durationSec: v.lengthSeconds,
-            cover: `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
-            src: buildStreamUrl(v.videoId),
-            glow: "rgba(139, 92, 246, 0.4)"
-          }));
+        const got = await fetchYtPlaylist(playlistId);
+        if (got) {
+          const importedTracks = got.tracks;
           if (importedTracks.length > 0) {
-            const plName = data.title || "YouTube İçe Aktarılan";
+            const plName = got.title || "YouTube İçe Aktarılan";
             await dbSavePlaylist(plName, importedTracks);
             notify(`"${plName}" listesi (${importedTracks.length} parça) Kitaplığıma eklendi! 🎉`);
             renderLibraryView();
@@ -2740,6 +2743,107 @@
       }
       notify("Liste alınamadı. Linki kontrol edip tekrar dene.");
     }
+
+    // Çalışan Invidious sunucusuyla YouTube listesini çek (tekrarlar ayıklanır)
+    async function fetchYtPlaylist(playlistId) {
+      const inst = await getWorkingInstance();
+      const all = []; let title = null;
+      for (let page = 1; page <= 20; page++) {
+        const res = await fetch(`${inst}/api/v1/playlists/${encodeURIComponent(playlistId)}?page=${page}`, { signal: AbortSignal.timeout(15000) });
+        if (!res.ok) { if (page === 1) return null; break; }
+        const data = await res.json();
+        title = title || data.title;
+        const vids = (data.videos || []).filter(v => v && v.videoId);
+        const before = all.length;
+        vids.forEach(v => { if (!all.some(a => a.videoId === v.videoId)) all.push(v); });
+        if (all.length === before || all.length >= (data.videoCount || 0)) break;
+      }
+      const tracks = all.map(v => registerTrack({
+        id: v.videoId, title: v.title, artist: v.author, duration: timeFormat(v.lengthSeconds),
+        durationSec: v.lengthSeconds, cover: `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
+        src: buildStreamUrl(v.videoId), glow: "rgba(139, 92, 246, 0.4)"
+      }));
+      dbg('LİSTE', `${playlistId} → "${title}" ${tracks.length} parça`);
+      return { title, tracks };
+    }
+
+    // Kullanıcının favori YouTube Music listesi (canlı çekilir, Kitaplık'a kaydedilir)
+    const FAV_YT_PLAYLIST_ID = 'PLGEtBRPth_WI';
+    let favYtName = localStorage.getItem('favYtName') || null;
+    function paintFavYtCard(name, count) {
+      const t = document.getElementById('favYtCardTitle'), s = document.getElementById('favYtCardSub'), p = document.getElementById('favYtPresetTitle');
+      if (name) { if (t) t.textContent = '⭐ ' + name; if (p) p.textContent = '⭐ ' + name; }
+      if (s) s.textContent = count != null ? `YouTube Music · ${count} parça` : 'YouTube Music';
+    }
+    async function syncFavYtPlaylist() {
+      try {
+        const got = await fetchYtPlaylist(FAV_YT_PLAYLIST_ID);
+        if (got && got.tracks.length) {
+          const name = got.title || 'Favori Listem';
+          if (favYtName && favYtName !== name) { /* başlık değiştiyse eskisini yeni adla sakla */ }
+          favYtName = name; localStorage.setItem('favYtName', name);
+          await dbSavePlaylist(name, got.tracks);
+          paintFavYtCard(name, got.tracks.length);
+          return name;
+        }
+      } catch(e) { dbg('LİSTE', 'favori liste çekilemedi: ' + (e && e.message)); }
+      const pls = await dbGetAllPlaylists();
+      const pl = favYtName && pls.find(p => p.name === favYtName);
+      paintFavYtCard(favYtName, pl ? pl.tracks.length : null);
+      return pl ? favYtName : null;
+    }
+    async function openFavYtPlaylist() {
+      closeModals();
+      let name = favYtName;
+      const pls = await dbGetAllPlaylists();
+      if (!name || !pls.some(p => p.name === name)) { notify('Liste yükleniyor... 🔍'); name = await syncFavYtPlaylist(); }
+      if (!name) { notify('Liste alınamadı, internet bağlantını kontrol et'); return; }
+      document.getElementById('currentViewPlaylistTitle').textContent = name;
+      switchNavTab('tabLibrary'); // renderLibraryView açık listeyi korur
+    }
+
+    // --- HEPSİNİ İNDİR (sırayla, tek tek) ---
+    let dlAllTarget = null, dlAllRunning = false;
+    function setDlAllTarget(name) {
+      dlAllTarget = name;
+      const b = document.getElementById('dlAllBtn');
+      if (b) b.style.display = name ? '' : 'none';
+      const st = document.getElementById('dlAllStatus');
+      if (st && !dlAllRunning) st.style.display = 'none';
+    }
+    async function getTracksForTarget(name) {
+      if (name === '__fav__') {
+        return await new Promise(r => { try { const q = db.transaction('favorites','readonly').objectStore('favorites').getAll(); q.onsuccess = () => r(q.result || []); q.onerror = () => r([]); } catch(e) { r([]); } });
+      }
+      const pl = (await dbGetAllPlaylists()).find(p => p.name === name);
+      return pl ? (pl.tracks || []) : [];
+    }
+    async function downloadAllCurrent() {
+      if (dlAllRunning) { notify('Toplu indirme zaten sürüyor'); return; }
+      const name = dlAllTarget; if (!name) return;
+      const seen = new Set();
+      const tracks = (await getTracksForTarget(name)).filter(t => { const k = cleanVideoId(t.id); if (!isRealYtId(k) || seen.has(k)) return false; seen.add(k); return true; });
+      const st = document.getElementById('dlAllStatus');
+      const total = tracks.length; let done = 0, ok = 0, skip = 0, fail = 0;
+      if (!total) { notify('Bu listede indirilecek YouTube şarkısı yok'); return; }
+      dlAllRunning = true; st.style.display = '';
+      const paint = () => { st.textContent = `${done}/${total} indirildi` + (skip ? ` · ${skip} zaten vardı` : '') + (fail ? ` · ${fail} başarısız` : ''); };
+      for (const t of tracks) done += (downloadedTrackIds.has(cleanVideoId(t.id)) ? 1 : 0);
+      paint();
+      dbg('TOPLU', `başladı "${name}" ${total} parça`);
+      done = 0;
+      for (const t of tracks) {
+        const r = await triggerDownload(t.id, t, { quiet: true });
+        if (r === 'ok') ok++; else if (r === 'var') skip++; else fail++;
+        done = ok + skip;
+        paint();
+      }
+      dbg('TOPLU', `bitti "${name}": yeni=${ok} atlandı=${skip} başarısız=${fail}`);
+      notify(`Toplu indirme bitti: ${ok} yeni, ${skip} zaten vardı${fail ? ', ' + fail + ' başarısız' : ''}`);
+      dlAllRunning = false;
+      if (dlAllTarget === name) openCustomPlaylistOrFav(name);
+    }
+    function openCustomPlaylistOrFav(name) { if (name === '__fav__') openPlaylistView('Favoriler'); else openCustomPlaylist(name); }
 
     // Hazır seçkileri içe aktar
     async function quickImportCurated(key) {
@@ -2798,6 +2902,8 @@
     // 1. ANINDA VE KOŞULSUZ RENDER (Sayfa açıldığı milisaniyede tüm şarkılar ve butonlar hazır olur!)
     renderHomeFeed();
     initNavTabBar();
+    paintFavYtCard(favYtName, null);
+    setTimeout(() => { (db ? Promise.resolve() : new Promise(r => setTimeout(r, 1500))).then(syncFavYtPlaylist).then(() => { if (document.getElementById('tabLibrary')?.classList.contains('active')) renderLibraryView(); }); }, 800);
 
     if (navigator.storage && navigator.storage.persist) {
       navigator.storage.persisted().then(already => already ? true : navigator.storage.persist())
