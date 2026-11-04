@@ -993,7 +993,7 @@
       <div class="header-brand">
         <span class="app-name">Müzik</span>
         <div class="badge-wrap">
-          <span class="ver-badge" onclick="openDebugPanel()" style="cursor:pointer" title="Hata ayıklama">v0.7.8 iOS</span>
+          <span class="ver-badge" onclick="openDebugPanel()" style="cursor:pointer" title="Hata ayıklama">v0.7.9 iOS</span>
           <span class="device-badge">iPhone 13 Edition</span>
         </div>
       </div>
@@ -1011,7 +1011,7 @@
     <div class="tab-content active" id="tabHome">
       <div class="title-row">
         <span class="title-text">Günün Önerileri</span>
-        <span class="title-sub">0.7.8 Live</span>
+        <span class="title-sub">0.7.9 Live</span>
       </div>
       <div class="track-list" id="homeFeedList"></div>
 
@@ -1373,7 +1373,7 @@
 
   <script>
     // --- HATA AYIKLAMA KAYDI (son 500 satır, localStorage'da saklanır) ---
-    const APP_VERSION = '0.7.8';
+    const APP_VERSION = '0.7.9';
     const DBG_KEY = 'muzikDebugLog';
     const DBG_MAX = 500;
     let DBG_LINES = [];
@@ -1455,7 +1455,7 @@
     }
     // --- INDEXEDDB (OFFLINE DEPOLAMA & LİSTELER) ---
     const DB_NAME = 'MuzikStoreDB';
-    const DB_VER = 2;
+    const DB_VER = 3; // v3: ses verisi ayrı 'audio' deposunda ArrayBuffer olarak (iOS Blob sorunu)
     let db;
     let downloadedTrackIds = new Set();
 
@@ -1469,18 +1469,27 @@
             if (!d.objectStoreNames.contains('downloads')) d.createObjectStore('downloads', { keyPath: 'id' });
             if (!d.objectStoreNames.contains('favorites')) d.createObjectStore('favorites', { keyPath: 'id' });
             if (!d.objectStoreNames.contains('playlists')) d.createObjectStore('playlists', { keyPath: 'name' });
+            if (!d.objectStoreNames.contains('audio')) d.createObjectStore('audio', { keyPath: 'id' });
+            dbg('DEPO', `IndexedDB yükseltme ${e.oldVersion} → ${e.newVersion} (mevcut veriler korunur)`);
           };
+          req.onblocked = () => dbg('DEPO', 'IndexedDB yükseltme engellendi (başka sekme açık)');
           req.onsuccess = async () => {
             db = req.result;
+            try {
+              const cnt = (st) => new Promise(r => { try { const q = db.transaction(st, 'readonly').objectStore(st).count(); q.onsuccess = () => r(q.result); q.onerror = () => r('hata: ' + (q.error && q.error.name)); } catch(e) { r('yok'); } });
+              dbg('DEPO', `açılış: IndexedDB kayıt sayısı — indirilenler=${await cnt('downloads')}, ses verisi=${await cnt('audio')}, listeler=${await cnt('playlists')}`);
+            } catch(e) { dbg('DEPO', 'sayım hatası ' + e); }
             try { await refreshDownloadedIds(); } catch(e) {}
             resolve(db);
           };
-          req.onerror = () => resolve(null);
+          req.onerror = () => { dbg('DEPO', 'IndexedDB AÇILAMADI: ' + (req.error && (req.error.name + ' ' + req.error.message))); resolve(null); };
         } catch(e) {
+          dbg('DEPO', 'IndexedDB yok/hata: ' + e);
           resolve(null);
         }
       });
     }
+    const recSize = (d) => (d && (d.size || (d.blob && d.blob.size))) || 0;
 
     async function refreshDownloadedIds() {
       try {
@@ -1491,24 +1500,31 @@
         const storageEl = document.getElementById('storageUsageIndicator');
         if (storageEl) {
           let totalBytes = 0;
-          downloads.forEach(d => { if (d.blob) totalBytes += d.blob.size; });
+          downloads.forEach(d => { totalBytes += recSize(d); });
           storageEl.textContent = `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`;
         }
       } catch(e) {}
     }
 
     async function dbSaveOfflineTrack(track, blob) {
+      // Blob yerine ArrayBuffer sakla: iOS Safari'de fetch'ten gelen Blob kapanıp açılınca okunamaz hale gelebiliyor
+      const buf = await blob.arrayBuffer();
+      const mime = blob.type || 'audio/mp4';
       return new Promise((resolve) => {
-        if (!db || !db.objectStoreNames || !db.objectStoreNames.contains('downloads')) return resolve();
+        if (!db || !db.objectStoreNames || !db.objectStoreNames.contains('audio')) return resolve();
         try {
-          const tx = db.transaction('downloads', 'readwrite');
-          tx.objectStore('downloads').put({ ...track, blob, downloadedAt: Date.now() });
+          const tx = db.transaction(['downloads', 'audio'], 'readwrite');
+          const meta = { ...track }; delete meta.blob;
+          tx.objectStore('audio').put({ id: track.id, buf, mime });
+          tx.objectStore('downloads').put({ ...meta, size: buf.byteLength, mime, downloadedAt: Date.now() });
           tx.oncomplete = async () => {
             await refreshDownloadedIds();
             resolve();
           };
-          tx.onerror = () => resolve();
+          tx.onerror = () => { dbg('DEPO', 'YAZMA HATASI: ' + (tx.error && (tx.error.name + ' ' + tx.error.message))); resolve(); };
+          tx.onabort = () => { dbg('DEPO', 'YAZMA İPTAL: ' + (tx.error && (tx.error.name + ' ' + tx.error.message))); resolve(); };
         } catch(e) {
+          dbg('DEPO', 'YAZMA HATASI: ' + e);
           resolve();
         }
       });
@@ -1524,8 +1540,9 @@
             const seen = new Set();
             resolve((req.result || []).filter(d => { const k = cleanVideoId(d.id); if (seen.has(k)) return false; seen.add(k); return true; }));
           };
-          req.onerror = () => resolve([]);
+          req.onerror = () => { dbg('DEPO', 'indirilenler OKUNAMADI: ' + (req.error && (req.error.name + ' ' + req.error.message))); resolve([]); };
         } catch(e) {
+          dbg('DEPO', 'indirilenler okuma hatası: ' + e);
           resolve([]);
         }
       });
@@ -1535,10 +1552,21 @@
       return new Promise((resolve) => {
         if (!db || !db.objectStoreNames || !db.objectStoreNames.contains('downloads')) return resolve(null);
         try {
-          const req = db.transaction('downloads', 'readonly').objectStore('downloads').get(id);
-          req.onsuccess = () => resolve(req.result || null);
-          req.onerror = () => resolve(null);
-        } catch(e) { resolve(null); }
+          const tx = db.transaction(db.objectStoreNames.contains('audio') ? ['downloads', 'audio'] : ['downloads'], 'readonly');
+          const req = tx.objectStore('downloads').get(id);
+          req.onsuccess = () => {
+            const rec = req.result;
+            if (!rec) return resolve(null);
+            if (!tx.objectStoreNames.contains('audio')) return resolve(rec);
+            const a = tx.objectStore('audio').get(id);
+            a.onsuccess = () => {
+              if (a.result && a.result.buf) resolve({ ...rec, blob: new Blob([a.result.buf], { type: a.result.mime || rec.mime || 'audio/mp4' }) });
+              else resolve(rec); // eski (0.7.8 ve öncesi) kayıt: blob alanı
+            };
+            a.onerror = () => { dbg('DEPO', 'ses verisi okunamadı ' + id + ': ' + (a.error && a.error.name)); resolve(rec); };
+          };
+          req.onerror = () => { dbg('DEPO', 'kayıt okunamadı ' + id + ': ' + (req.error && req.error.name)); resolve(null); };
+        } catch(e) { dbg('DEPO', 'kayıt okuma hatası ' + e); resolve(null); }
       });
     }
 
@@ -1655,9 +1683,9 @@
         const bump = () => { clearTimeout(timer); timer = setTimeout(() => ctrl.abort(), stallMs); };
         try {
           const res = await fetch(url, { signal: ctrl.signal });
-          if (!res.ok) return null;
+          if (!res.ok) { fetchBlobWithStall.lastReason = `HTTP ${res.status}`; return null; }
           const type = res.headers.get('content-type') || 'audio/mp4';
-          if (type.includes('text/html')) return null;
+          if (type.includes('text/html')) { fetchBlobWithStall.lastReason = 'HTML sayfa döndü (captcha/engel)'; return null; }
           if (!res.body || !res.body.getReader) { const b = await res.blob(); return b; }
           const reader = res.body.getReader();
           const chunks = [];
@@ -1670,6 +1698,7 @@
           }
           return new Blob(chunks, { type: type.split(';')[0] });
         } catch (e) {
+          fetchBlobWithStall.lastReason = e && e.name === 'AbortError' ? `akış ${stallMs/1000}s durdu (iptal)` : `ağ hatası: ${e && (e.name + ' ' + e.message)}`;
           console.warn('Download fetch error:', url, e);
           return null;
         } finally {
@@ -1685,9 +1714,36 @@
 
       // Sırayla denenecek ses sunucuları: comp1 → comp3 → comp2
       const COMPANION_ORDER = [0, 2, 1];
+      // 302'yi bir kez çöz, son adresi (videoplayback) kullan: Safari her sarmada (Range isteği)
+      // companion'a gidip yeniden YouTube çözümlemesi yaptırmasın. Son adres ~6 saat geçerli (expire).
+      const _finalUrlCache = new Map();
+      async function resolveFinalUrl(url) {
+        const c = _finalUrlCache.get(url);
+        if (c && c.exp - Date.now() > 10 * 60 * 1000) return c.url;
+        const t0 = performance.now();
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 6000);
+        try {
+          const res = await fetch(url, { signal: ctrl.signal });
+          const finalUrl = res.url;
+          const ct = res.headers.get('content-type') || '';
+          ctrl.abort(); // gövdeyi indirme, sadece son adres lazım
+          if (!res.ok || ct.includes('text/html') || !finalUrl || finalUrl === url) {
+            dbg('SES', `yönlendirme çözülemedi (${res.status} ${ct.split(';')[0]}), ham adres kullanılıyor`);
+            return url;
+          }
+          const exp = (parseInt(new URL(finalUrl).searchParams.get('expire') || '0', 10) * 1000) || (Date.now() + 3600e3);
+          _finalUrlCache.set(url, { url: finalUrl, exp });
+          dbg('SES', `yönlendirme çözüldü ${Math.round(performance.now() - t0)}ms → ${new URL(finalUrl).host}/videoplayback (geçerli ${Math.round((exp - Date.now()) / 60000)} dk)`);
+          return finalUrl;
+        } catch (e) {
+          dbg('SES', `yönlendirme hatası (${e && e.name}), ham adres kullanılıyor`);
+          return url;
+        } finally { clearTimeout(to); }
+      }
       async function getStreamUrl(videoId, attempt = 0) {
         const idx = COMPANION_ORDER[attempt % COMPANION_ORDER.length];
-        return buildStreamUrl(videoId, COMPANION_INSTANCES[idx]);
+        return resolveFinalUrl(buildStreamUrl(videoId, COMPANION_INSTANCES[idx]));
       }
 
         const CURATED_FEED = [
@@ -2010,10 +2066,8 @@
       if (!next) return;
       (async () => {
         if (next.blob || downloadedTrackIds.has(next.id)) return; // kayıtlıysa önceden yüklemeye gerek yok
-        const url = (next.id && isRealYtId(next.id)) ? await getStreamUrl(next.id) : next.src;
-        if (!url) return;
-        buffer.src = url;
-        buffer.load();
+        // Sadece adresi önceden çöz; ikinci <audio> ile tüm şarkıyı indirmek sarmayla bant genişliği yarıştırıyordu
+        if (next.id && isRealYtId(next.id)) await getStreamUrl(next.id);
       })();
     }
 
@@ -2122,8 +2176,19 @@
       _performSmoothSeek(targetSec);
     }
 
+    let _seekT0 = 0, _seekFrom = 0, _waitT0 = 0;
+    const _bufInfo = () => { try { const b = audio.buffered; const r = []; for (let i = 0; i < b.length; i++) r.push(b.start(i).toFixed(0) + '-' + b.end(i).toFixed(0)); return r.join(',') || 'yok'; } catch(e) { return '?'; } };
     audio.addEventListener('seeking', () => {
       labelCurrentTime.style.opacity = '0.5';
+      _seekT0 = performance.now();
+      dbg('SES', `sarma başladı → ${audio.currentTime.toFixed(1)}s (${_srcHost(audio)}, tampon: ${_bufInfo()})`);
+    });
+    audio.addEventListener('seeked', () => {
+      if (_seekT0) dbg('SES', `sarma bitti ${Math.round(performance.now() - _seekT0)}ms @ ${audio.currentTime.toFixed(1)}s`);
+    });
+    audio.addEventListener('waiting', () => { _waitT0 = performance.now(); });
+    audio.addEventListener('playing', () => {
+      if (_waitT0) { dbg('SES', `bekleme bitti ${Math.round(performance.now() - _waitT0)}ms (sarmadan beri ${_seekT0 ? Math.round(performance.now() - _seekT0) + 'ms' : '-'})`); _waitT0 = 0; _seekT0 = 0; }
     });
 
     audio.addEventListener('seeked', () => {
@@ -2312,7 +2377,7 @@
 
       let totalBytes = 0;
       downloads.forEach(d => {
-        if (d.blob) totalBytes += d.blob.size;
+        totalBytes += recSize(d);
         listEl.appendChild(createRow(d, downloads));
       });
 
@@ -2425,11 +2490,21 @@
     async function fetchTrackAudio(track) {
       const cleanId = cleanVideoId(track.id);
       if (!isRealYtId(cleanId)) return null;
-      for (const i of COMPANION_ORDER) {
-        const b = await fetchBlobWithStall(buildStreamUrl(cleanId, COMPANION_INSTANCES[i]));
-        dbg('İNDİR', `${COMPANION_INSTANCES[i].replace('https://','')} → ${b ? (b.size/1048576).toFixed(2) + ' MB ' + b.type : 'başarısız'}`);
-        if (b && b.size > 10000) return b;
+      // Her sunucu sırayla; tümü başarısızsa 2 sn bekleyip bir tur daha (geçici hatalar için)
+      const reasons = [];
+      for (let round = 0; round < 2; round++) {
+        if (round) { dbg('İNDİR', `${cleanId}: tüm sunucular başarısız, 2 sn sonra yeniden deneniyor`); await new Promise(r => setTimeout(r, 2000)); }
+        for (const i of COMPANION_ORDER) {
+          fetchBlobWithStall.lastReason = '';
+          const b = await fetchBlobWithStall(buildStreamUrl(cleanId, COMPANION_INSTANCES[i]));
+          const host = COMPANION_INSTANCES[i].replace('https://','');
+          const why = b ? (b.size > 10000 ? '' : `çok küçük (${b.size} B)`) : (fetchBlobWithStall.lastReason || 'bilinmiyor');
+          dbg('İNDİR', `${host} → ${b && !why ? (b.size/1048576).toFixed(2) + ' MB ' + b.type : 'başarısız: ' + why}`);
+          if (b && !why) return b;
+          reasons.push(host.split('.')[0] + ': ' + why);
+        }
       }
+      fetchTrackAudio.lastReasons = reasons.join(' | ');
       return null;
     }
 
@@ -2474,7 +2549,9 @@
             if (coverData) toSave.cover = coverData;
             await dbSaveOfflineTrack(toSave, blob);
             const back = await dbGetTrack(track.id);
-            dbg('İNDİR', back && back.blob ? `IndexedDB yazıldı ✔ okunan=${back.blob.size} beklenen=${blob.size} ${back.blob.size === blob.size ? 'EŞİT' : 'FARKLI!'}` : 'IndexedDB YAZILAMADI ✘');
+            let backOk = false;
+            if (back && back.blob) { try { backOk = (await back.blob.slice(0, 16).arrayBuffer()).byteLength > 0; } catch(e) {} }
+            dbg('İNDİR', back && back.blob ? `IndexedDB yazıldı ✔ okunan=${back.blob.size} beklenen=${blob.size} ${back.blob.size === blob.size ? 'EŞİT' : 'FARKLI!'} veri okunabiliyor=${backOk ? 'evet' : 'HAYIR'}` : 'IndexedDB YAZILAMADI ✘');
             downloadedTrackIds.add(track.id);
             const mb = (blob.size / (1024 * 1024)).toFixed(1);
             if (!opts.quiet) notify(`"${track.title}" kaydedildi! (${mb} MB) 📥 — İnternetsiz dinleyebilirsiniz`);
@@ -2483,7 +2560,7 @@
             return 'ok';
           } else {
             if (!opts.quiet) notify(`"${track.title}" indirilemedi, sonra tekrar dene`);
-            dbg('İNDİR', `BAŞARISIZ: ${track.id}`);
+            dbg('İNDİR', `BAŞARISIZ: ${track.id} "${(track.title||'').slice(0,30)}" — nedenler: ${fetchTrackAudio.lastReasons || 'bilinmiyor'}`);
             return 'hata';
           }
         } catch(e) {
